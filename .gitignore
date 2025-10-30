@@ -11,8 +11,9 @@ __pycache__/
 # Django
 *.log
 local_settings.py
-# db.sqlite3  # Commented out to allow database in git for deployment
-# *.sqlite3   # Commented out to allow database in git for deployment
+db.sqlite3
+*.sqlite3
+
 
 
 /media
