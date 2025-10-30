@@ -1,0 +1,381 @@
+{% extends 'base.html' %}
+
+{% block title %}Manager Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Welcome Section -->
+    <div class="welcome-section">
+        <div class="welcome-text">
+            <h1 class="h3 mb-1">Welcome back, {{ user.username }}!</h1>
+            <p class="text-muted">Here's what's happening with your city management today.</p>
+        </div>
+        <div class="welcome-actions">
+            <button class="btn btn-primary">
+                <i class="ri-add-line"></i>
+                <span class="btn-text">New Task</span>
+            </button>
+            <a href="{% url 'manager:export_complaints_pdf' %}" class="btn btn-secondary">
+                <i class="ri-download-line"></i>
+                <span class="btn-text">Export Report</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Bento Grid Layout -->
+    <div class="bento-grid">
+        <div class="bento-item glass-effect">
+            <div class="bento-header">
+                <div class="bento-icon">
+                    <i class="ri-file-list-line"></i>
+                </div>
+                <h3 class="bento-title">Total Complaints</h3>
+            </div>
+            <div class="bento-content">
+                <div class="bento-value" id="total-complaints">{{ total_complaints|default:"0" }}</div>
+                <div class="bento-trend">
+                    <i class="ri-arrow-up-line trend-up"></i>
+                    <span id="total-complaints-trend">{{ total_complaints_trend|default:"0" }}% from last month</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bento-item glass-effect">
+            <div class="bento-header">
+                <div class="bento-icon">
+                    <i class="ri-time-line"></i>
+                </div>
+                <h3 class="bento-title">Pending Issues</h3>
+            </div>
+            <div class="bento-content">
+                <div class="bento-value" id="pending-complaints">{{ pending_complaints|default:"0" }}</div>
+                <div class="bento-trend">
+                    <i class="ri-arrow-down-line trend-down"></i>
+                    <span id="pending-complaints-trend">{{ pending_complaints_trend|default:"0" }}% from last week</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bento-item glass-effect">
+            <div class="bento-header">
+                <div class="bento-icon">
+                    <i class="ri-check-double-line"></i>
+                </div>
+                <h3 class="bento-title">Resolved Issues</h3>
+            </div>
+            <div class="bento-content">
+                <div class="bento-value" id="resolved-complaints">{{ resolved_complaints|default:"0" }}</div>
+                <div class="bento-trend">
+                    <i class="ri-arrow-up-line trend-up"></i>
+                    <span id="resolved-complaints-trend">{{ resolved_complaints_trend|default:"0" }}% from last week</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bento-item glass-effect">
+            <div class="bento-header">
+                <div class="bento-icon">
+                    <i class="ri-user-line"></i>
+                </div>
+                <h3 class="bento-title">Active Users</h3>
+            </div>
+            <div class="bento-content">
+                <div class="bento-value">{{ active_users|default:"5" }}</div>
+                <div class="bento-trend">
+                    <i class="ri-arrow-up-line trend-up"></i>
+                    <span id="active-users-trend">{{ active_users_trend|default:"0" }}% from last month</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="bento-item span-2 tall glass-effect">
+            <div class="bento-header">
+                <div class="bento-icon">
+                    <i class="ri-line-chart-line"></i>
+                </div>
+                <h3 class="bento-title">Complaints Overview</h3>
+            </div>
+            <div class="bento-content">
+                <div class="timeline">
+                    {% for activity in recent_activities %}
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <h6 class="mb-1">{{ activity.title }}</h6>
+                            <p class="text-muted small mb-0">{{ activity.complaint_type }} - {{ activity.user.username }}</p>
+                            <p class="text-muted small mb-0">{{ activity.created_at|date:"M d, Y H:i" }}</p>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center text-muted py-4">
+                        <i class="ri-inbox-line" style="font-size: 2rem;"></i>
+                        <p class="mt-2">No recent activity</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="bento-item span-2 tall glass-effect">
+            <div class="bento-header">
+                <div class="bento-icon">
+                    <i class="ri-notification-4-line"></i>
+                </div>
+                <h3 class="bento-title">Recent Alerts</h3>
+            </div>
+            <div class="bento-content">
+                <div class="timeline">
+                    {% for alert in recent_alerts %}
+                    <div class="timeline-item">
+                        <div class="timeline-marker"></div>
+                        <div class="timeline-content">
+                            <h6 class="mb-1">{{ alert.title }}</h6>
+                            <p class="text-muted small mb-0">{{ alert.message }}</p>
+                            <p class="text-muted small mb-0">{{ alert.created_at|date:"M d, Y H:i" }}</p>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center text-muted py-4">
+                        <i class="ri-notification-off-line" style="font-size: 2rem;"></i>
+                        <p class="mt-2">No recent alerts</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Welcome Section Styles */
+.welcome-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    gap: 1rem;
+}
+
+.welcome-text {
+    flex: 1;
+}
+
+.welcome-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.btn-text {
+    display: inline-block;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    .welcome-section {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .welcome-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .btn-text {
+        display: none;
+    }
+
+    .timeline {
+        padding-left: 1.5rem;
+    }
+
+    .timeline-marker {
+        left: -1.5rem;
+        width: 0.875rem;
+        height: 0.875rem;
+    }
+
+    .timeline-content::before {
+        left: -1.5rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .container-fluid {
+        padding: 0.5rem;
+    }
+
+    .welcome-section {
+        margin-bottom: 1rem;
+    }
+
+    .h3 {
+        font-size: 1.25rem;
+    }
+
+    .text-muted {
+        font-size: 0.875rem;
+    }
+
+    .timeline {
+        padding-left: 1.25rem;
+    }
+
+    .timeline-marker {
+        left: -1.25rem;
+        width: 0.75rem;
+        height: 0.75rem;
+    }
+
+    .timeline-content::before {
+        left: -1.25rem;
+    }
+
+    .timeline-content h6 {
+        font-size: 0.875rem;
+    }
+
+    .timeline-content p {
+        font-size: 0.75rem;
+    }
+}
+
+.timeline {
+    position: relative;
+    padding-left: 2rem;
+    height: 100%;
+    overflow-y: auto;
+}
+
+.timeline-item {
+    position: relative;
+    padding-bottom: 1.5rem;
+}
+
+.timeline-item:last-child {
+    padding-bottom: 0;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -2rem;
+    top: 0;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: var(--purple-600);
+}
+
+.timeline-content {
+    position: relative;
+}
+
+.timeline-content::before {
+    content: '';
+    position: absolute;
+    left: -2rem;
+    top: 1rem;
+    bottom: -1rem;
+    width: 2px;
+    background: rgba(139, 92, 246, 0.2);
+}
+
+.timeline-item:last-child .timeline-content::before {
+    display: none;
+}
+
+.container-fluid {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+/* Additional styles for the welcome section */
+.h3 {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    color: var(--foreground);
+    letter-spacing: -0.02em;
+}
+
+.text-muted {
+    color: var(--secondary-foreground) !important;
+}
+
+/* Trend icon styles */
+.trend-up {
+    color: #10b981;
+}
+
+.trend-down {
+    color: #ef4444;
+}
+
+.bento-trend i {
+    margin-right: 0.5rem;
+}
+</style>
+
+<script>
+// Real-time dashboard updates
+function updateDashboard() {
+    fetch('/manager/dashboard-data/')
+        .then(response => response.json())
+        .then(data => {
+            // Update values
+            document.getElementById('total-complaints').textContent = data.total_complaints;
+            document.getElementById('pending-complaints').textContent = data.pending_complaints;
+            document.getElementById('resolved-complaints').textContent = data.resolved_complaints;
+            document.getElementById('active-users').textContent = data.active_users;
+            
+            // Update trends
+            updateTrend('total-complaints-trend', data.total_complaints_trend);
+            updateTrend('pending-complaints-trend', data.pending_complaints_trend);
+            updateTrend('resolved-complaints-trend', data.resolved_complaints_trend);
+            updateTrend('active-users-trend', data.active_users_trend);
+        })
+        .catch(error => {
+            console.error('Error updating dashboard:', error);
+        });
+}
+
+function updateTrend(elementId, trendData) {
+    const element = document.getElementById(elementId);
+    const icon = element.previousElementSibling;
+    
+    if (trendData.percentage > 0) {
+        icon.className = 'ri-arrow-up-line trend-up';
+        element.textContent = `${trendData.percentage}% from ${trendData.period}`;
+    } else if (trendData.percentage < 0) {
+        icon.className = 'ri-arrow-down-line trend-down';
+        element.textContent = `${Math.abs(trendData.percentage)}% from ${trendData.period}`;
+    } else {
+        icon.className = 'ri-minus-line';
+        element.textContent = `No change from ${trendData.period}`;
+    }
+}
+
+// Update trend icons on page load based on initial data
+document.addEventListener('DOMContentLoaded', function() {
+    // Initial data fetch
+    updateDashboard();
+    
+    // Setup auto-refresh
+    setInterval(updateDashboard, 30000);
+}); {
+                icon.className = 'ri-minus-line';
+            }
+        }
+    });
+});
+
+// Update dashboard every 30 seconds
+setInterval(updateDashboard, 30000);
+
+// Initial update
+document.addEventListener('DOMContentLoaded', function() {
+    updateDashboard();
+});
+</script>
+{% endblock %} 

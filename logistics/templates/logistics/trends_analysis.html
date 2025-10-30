@@ -1,0 +1,587 @@
+{% extends 'users/base.html' %}
+
+{% block title %}Trends Analysis - Officials' Dashboard{% endblock %}
+
+{% block content %}
+<div class="trends-analysis" style="padding-left: 1.25rem; padding-right: 1.25rem;">
+    <!-- Header Section -->
+    <div class="page-header">
+        <div class="header-content">
+            <h1 class="page-title">
+                <i class="ri-line-chart-line"></i>
+                Trends Analysis
+            </h1>
+            <p class="page-subtitle">
+                Comprehensive analytics on project completion trends and infrastructure growth patterns
+            </p>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'officials_dashboard' %}" class="btn btn-outline-primary">
+                <i class="ri-arrow-left-line"></i>
+                Back to Officials' Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="ri-project-line"></i>
+            </div>
+            <div class="stat-content">
+                <h3>Total Projects</h3>
+                <span class="stat-value" id="totalProjects">-</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="ri-check-line"></i>
+            </div>
+            <div class="stat-content">
+                <h3>Completed</h3>
+                <span class="stat-value" id="completedProjects">-</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="ri-time-line"></i>
+            </div>
+            <div class="stat-content">
+                <h3>Ongoing</h3>
+                <span class="stat-value" id="ongoingProjects">-</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="ri-alert-line"></i>
+            </div>
+            <div class="stat-content">
+                <h3>Delayed</h3>
+                <span class="stat-value" id="delayedProjects">-</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Grid -->
+    <div class="charts-grid">
+        <!-- Project Status Distribution -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h3>Project Status Distribution</h3>
+                <p>Current status of all infrastructure projects</p>
+            </div>
+            <canvas id="statusChart"></canvas>
+        </div>
+
+        <!-- Budget by Sector -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h3>Budget Allocation by Sector</h3>
+                <p>Total budget distribution across different sectors</p>
+            </div>
+            <canvas id="budgetChart"></canvas>
+        </div>
+
+        <!-- Completion Trends -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h3>Project Completion Trends</h3>
+                <p>Number of projects by status over time</p>
+            </div>
+            <canvas id="trendsChart"></canvas>
+        </div>
+
+        <!-- Monthly Project Starts -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h3>Monthly Project Starts</h3>
+                <p>New projects initiated by month</p>
+            </div>
+            <canvas id="monthlyChart"></canvas>
+        </div>
+
+        <!-- Progress by Status -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h3>Average Progress by Status</h3>
+                <p>Progress percentage for different project statuses</p>
+            </div>
+            <canvas id="progressChart"></canvas>
+        </div>
+
+        <!-- Budget Trends -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h3>Budget Trends Over Time</h3>
+                <p>Total budget allocation by year</p>
+            </div>
+            <canvas id="budgetTrendsChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<style>
+.trends-analysis {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 3rem;
+    padding: 2rem;
+    background: linear-gradient(135deg, #10B981, #059669);
+    border-radius: 1rem;
+    color: white;
+}
+
+.header-content h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.header-content p {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    margin: 0;
+}
+
+.btn-outline-primary {
+    background: transparent;
+    border: 2px solid white;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-primary:hover {
+    background: white;
+    color: #10B981;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--purple-600);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.stat-content h3 {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--secondary-foreground);
+    margin: 0 0 0.25rem 0;
+}
+
+.stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--foreground);
+}
+
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+    gap: 2rem;
+}
+
+.chart-container {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.chart-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.chart-header h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--foreground);
+}
+
+.chart-header p {
+    color: var(--secondary-foreground);
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+canvas {
+    max-height: 400px;
+}
+
+@media (max-width: 768px) {
+    .trends-analysis {
+        padding: 1rem;
+    }
+    
+    .page-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+    }
+    
+    .header-content h1 {
+        font-size: 2rem;
+    }
+    
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .chart-container {
+        padding: 1rem;
+    }
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Chart.js global modern theme
+Chart.defaults.font.family = "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial";
+Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--secondary-foreground') || '#6B7280';
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.legend.labels.pointStyle = 'circle';
+Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(17, 24, 39, 0.9)';
+Chart.defaults.plugins.tooltip.titleColor = '#fff';
+Chart.defaults.plugins.tooltip.bodyColor = '#E5E7EB';
+Chart.defaults.responsive = true;
+Chart.defaults.maintainAspectRatio = false;
+document.addEventListener('DOMContentLoaded', function() {
+    loadTrendsData();
+});
+
+async function loadTrendsData() {
+    try {
+        const response = await fetch('/logistics/api/trends/');
+        const data = await response.json();
+        
+        if (data.success) {
+            updateStats(data.data);
+            createCharts(data.data);
+        }
+    } catch (error) {
+        console.error('Error loading trends data:', error);
+    }
+}
+
+function updateStats(data) {
+    // Update statistics cards
+    const statusDistribution = data.status_distribution;
+    let total = 0, completed = 0, ongoing = 0, delayed = 0;
+    
+    statusDistribution.forEach(item => {
+        total += item.count;
+        if (item.status === 'Completed') completed = item.count;
+        if (item.status === 'Ongoing') ongoing = item.count;
+        if (item.status === 'Delayed') delayed = item.count;
+    });
+    
+    document.getElementById('totalProjects').textContent = total;
+    document.getElementById('completedProjects').textContent = completed;
+    document.getElementById('ongoingProjects').textContent = ongoing;
+    document.getElementById('delayedProjects').textContent = delayed;
+}
+
+function createCharts(data) {
+    // Project Status Distribution (Doughnut Chart)
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: data.status_distribution.map(item => item.status),
+            datasets: [{
+                data: data.status_distribution.map(item => item.count),
+                backgroundColor: ['#10B981', '#3B82F6', '#EF4444'],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+
+    // Budget by Sector (Bar Chart)
+    const budgetCtx = document.getElementById('budgetChart').getContext('2d');
+    new Chart(budgetCtx, {
+        type: 'bar',
+        data: {
+            labels: data.budget_by_sector.map(item => item.sector),
+            datasets: [{
+                label: 'Total Budget (₹ Crores)',
+                data: data.budget_by_sector.map(item => item.total_budget),
+                backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                borderColor: 'rgba(59, 130, 246, 1)',
+                borderWidth: 1,
+                borderRadius: 10,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Budget (₹ Crores)'
+                    },
+                    grid: { color: 'rgba(107,114,128,0.15)' }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Completion Trends (Line Chart)
+    const trendsCtx = document.getElementById('trendsChart').getContext('2d');
+    const trendsData = processTrendsData(data.completion_trends);
+    new Chart(trendsCtx, {
+        type: 'line',
+        data: {
+            labels: trendsData.labels,
+            datasets: trendsData.datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Number of Projects'
+                    },
+                    grid: { color: 'rgba(107,114,128,0.15)' }
+                }
+            }
+        }
+    });
+
+    // Monthly Project Starts (Bar Chart)
+    const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+    const monthlyData = processMonthlyData(data.monthly_starts);
+    new Chart(monthlyCtx, {
+        type: 'bar',
+        data: {
+            labels: monthlyData.labels,
+            datasets: [{
+                label: 'New Projects',
+                data: monthlyData.data,
+                backgroundColor: 'rgba(16, 185, 129, 0.8)',
+                borderColor: 'rgba(16, 185, 129, 1)',
+                borderWidth: 1,
+                borderRadius: 10,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Number of Projects'
+                    },
+                    grid: { color: 'rgba(107,114,128,0.15)' }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Progress by Status (Bar Chart)
+    const progressCtx = document.getElementById('progressChart').getContext('2d');
+    new Chart(progressCtx, {
+        type: 'bar',
+        data: {
+            labels: data.progress_by_status.map(item => item.status),
+            datasets: [{
+                label: 'Average Progress (%)',
+                data: data.progress_by_status.map(item => item.avg_progress),
+                backgroundColor: 'rgba(245, 158, 11, 0.8)',
+                borderColor: 'rgba(245, 158, 11, 1)',
+                borderWidth: 1,
+                borderRadius: 10,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    title: {
+                        display: true,
+                        text: 'Progress (%)'
+                    },
+                    grid: { color: 'rgba(107,114,128,0.15)' }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Budget Trends (Line Chart)
+    const budgetTrendsCtx = document.getElementById('budgetTrendsChart').getContext('2d');
+    const budgetTrendsData = processBudgetTrendsData(data.budget_by_sector);
+    new Chart(budgetTrendsCtx, {
+        type: 'line',
+        data: {
+            labels: budgetTrendsData.labels,
+            datasets: [{
+                label: 'Total Budget (₹ Crores)',
+                data: budgetTrendsData.data,
+                backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                borderColor: 'rgba(139, 92, 246, 1)',
+                borderWidth: 3,
+                fill: true,
+                pointRadius: 3,
+                pointHoverRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Budget (₹ Crores)'
+                    },
+                    grid: { color: 'rgba(107,114,128,0.15)' }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+function processTrendsData(trendsData) {
+    const years = [...new Set(trendsData.map(item => item.year))].sort();
+    const statuses = [...new Set(trendsData.map(item => item.status))];
+    
+    const datasets = statuses.map(status => {
+        const data = years.map(year => {
+            const item = trendsData.find(t => t.year === year && t.status === status);
+            return item ? item.count : 0;
+        });
+        
+        const colors = {
+            'Completed': '#10B981',
+            'Ongoing': '#3B82F6',
+            'Delayed': '#EF4444'
+        };
+        
+        return {
+            label: status,
+            data: data,
+            borderColor: colors[status],
+            backgroundColor: colors[status],
+            tension: 0.4
+        };
+    });
+    
+    return {
+        labels: years,
+        datasets: datasets
+    };
+}
+
+function processMonthlyData(monthlyData) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const data = new Array(12).fill(0);
+    
+    monthlyData.forEach(item => {
+        if (item.month >= 1 && item.month <= 12) {
+            data[item.month - 1] += item.count;
+        }
+    });
+    
+    return {
+        labels: months,
+        data: data
+    };
+}
+
+function processBudgetTrendsData(budgetData) {
+    const sectors = budgetData.map(item => item.sector);
+    const budgets = budgetData.map(item => item.total_budget);
+    
+    return {
+        labels: sectors,
+        data: budgets
+    };
+}
+</script>
+{% endblock %}

@@ -1,0 +1,873 @@
+{% extends 'users/base.html' %}
+
+{% block title %}Road Development Analytics - CityPulse{% endblock %}
+
+{% block content %}
+<div class="road-analytics" style="padding-left: 1.25rem; padding-right: 1.25rem;">
+    <!-- Header Section -->
+    <div class="analytics-header">
+        <div class="header-content">
+            <h1 class="analytics-title">
+                <i class="ri-road-map-line"></i>
+                Road Development Analytics
+            </h1>
+            <p class="analytics-subtitle">
+                Comprehensive analysis of road infrastructure planning, budget efficiency, and development insights
+            </p>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'officials_dashboard' %}" class="btn btn-outline-primary">
+                <i class="ri-arrow-left-line"></i>
+                Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="ri-project-line"></i>
+            </div>
+            <div class="stat-content">
+                <h3>Total Projects</h3>
+                <span class="stat-value" id="totalProjects">-</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="ri-money-dollar-circle-line"></i>
+            </div>
+            <div class="stat-content">
+                <h3>Total Budget</h3>
+                <span class="stat-value" id="totalBudget">-</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="ri-road-line"></i>
+            </div>
+            <div class="stat-content">
+                <h3>Total Road Length</h3>
+                <span class="stat-value" id="totalRoadLength">-</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="ri-building-line"></i>
+            </div>
+            <div class="stat-content">
+                <h3>Cities Covered</h3>
+                <span class="stat-value" id="citiesCovered">-</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="charts-section">
+        <div class="chart-row">
+            <!-- Status Distribution Chart -->
+            <div class="chart-card" style="min-height: 360px;">
+                <div class="chart-header">
+                    <h3>Project Status Distribution</h3>
+                    <p>Current status of all road development projects</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Priority Distribution Chart -->
+            <div class="chart-card" style="min-height: 360px;">
+                <div class="chart-header">
+                    <h3>Priority Level Distribution</h3>
+                    <p>Distribution of projects by priority level</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="priorityChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-row">
+            <!-- Budget by Status Chart -->
+            <div class="chart-card" style="min-height: 360px;">
+                <div class="chart-header">
+                    <h3>Budget Allocation by Status</h3>
+                    <p>Budget distribution across different project statuses</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="budgetStatusChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Road Length by Priority Chart -->
+            <div class="chart-card" style="min-height: 360px;">
+                <div class="chart-header">
+                    <h3>Road Length by Priority</h3>
+                    <p>Total road length planned by priority level</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="lengthPriorityChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-row">
+            <!-- Year-wise Project Starts -->
+            <div class="chart-card full-width" style="min-height: 360px;">
+                <div class="chart-header">
+                    <h3>Project Starts by Year</h3>
+                    <p>Number of projects initiated each year</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="yearChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-row">
+            <!-- Top Contractors -->
+            <div class="chart-card" style="min-height: 360px;">
+                <div class="chart-header">
+                    <h3>Top Contractors</h3>
+                    <p>Contractors with most projects</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="contractorChart"></canvas>
+                </div>
+            </div>
+
+            <!-- City Distribution -->
+            <div class="chart-card" style="min-height: 360px;">
+                <div class="chart-header">
+                    <h3>Projects by City</h3>
+                    <p>Distribution of projects across cities</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="cityChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis Tables -->
+    <div class="analysis-section">
+        <div class="table-row">
+            <!-- Longest Duration Projects -->
+            <div class="table-card">
+                <div class="table-header">
+                    <h3>Longest Duration Projects</h3>
+                    <p>Projects with the longest planned duration</p>
+                </div>
+                <div class="table-container">
+                    <table id="durationTable">
+                        <thead>
+                            <tr>
+                                <th>Project Name</th>
+                                <th>City</th>
+                                <th>Duration (Years)</th>
+                                <th>Budget</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="durationTableBody">
+                            <!-- Data will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Most Efficient Projects -->
+            <div class="table-card">
+                <div class="table-header">
+                    <h3>Most Budget-Efficient Projects</h3>
+                    <p>Projects with lowest cost per kilometer</p>
+                </div>
+                <div class="table-container">
+                    <table id="efficiencyTable">
+                        <thead>
+                            <tr>
+                                <th>Project Name</th>
+                                <th>City</th>
+                                <th>Cost/km (₹ Cr)</th>
+                                <th>Road Length</th>
+                                <th>Priority</th>
+                            </tr>
+                        </thead>
+                        <tbody id="efficiencyTableBody">
+                            <!-- Data will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CSV Loading Status -->
+    <div class="csv-status" id="csvStatus" style="display: none;">
+        <div class="status-content">
+            <i class="ri-loader-4-line"></i>
+            <span>Loading road development data...</span>
+        </div>
+    </div>
+</div>
+
+<style>
+.road-analytics {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.analytics-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 3rem;
+    padding: 2rem;
+    background: linear-gradient(135deg, #3B82F6, #2563EB);
+    border-radius: 1rem;
+    color: white;
+}
+
+.header-content h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.header-content p {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    margin: 0;
+}
+
+.btn-outline-primary {
+    background: transparent;
+    border: 2px solid white;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-primary:hover {
+    background: white;
+    color: #3B82F6;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3B82F6, #2563EB);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.stat-content h3 {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--secondary-foreground);
+    margin: 0 0 0.5rem 0;
+}
+
+.stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--foreground);
+}
+
+.charts-section {
+    margin-bottom: 3rem;
+}
+
+.chart-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: 2rem;
+    margin-bottom: 2rem;
+}
+
+.chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.chart-card.full-width {
+    grid-column: 1 / -1;
+}
+
+.chart-header {
+    margin-bottom: 1.5rem;
+}
+
+.chart-header h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+    color: var(--foreground);
+}
+
+.chart-header p {
+    color: var(--secondary-foreground);
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.chart-container {
+    height: 300px;
+    position: relative;
+}
+
+.analysis-section {
+    margin-bottom: 3rem;
+}
+
+.table-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+    gap: 2rem;
+}
+
+.table-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.table-header {
+    margin-bottom: 1.5rem;
+}
+
+.table-header h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+    color: var(--foreground);
+}
+
+.table-header p {
+    color: var(--secondary-foreground);
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.table-container {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+th, td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+th {
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+    font-weight: 600;
+}
+
+td {
+    color: var(--foreground);
+}
+
+.csv-status {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+}
+
+.status-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 1.1rem;
+    color: var(--foreground);
+}
+
+.status-content i {
+    animation: spin 1s linear infinite;
+    font-size: 1.5rem;
+    color: #3B82F6;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+    .road-analytics {
+        padding: 1rem;
+    }
+    
+    .analytics-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+    }
+    
+    .header-content h1 {
+        font-size: 2rem;
+    }
+    
+    .chart-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .table-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Chart.js global modern theme
+Chart.defaults.font.family = "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial";
+Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--secondary-foreground') || '#6B7280';
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.legend.labels.pointStyle = 'circle';
+Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(17, 24, 39, 0.9)';
+Chart.defaults.plugins.tooltip.titleColor = '#fff';
+Chart.defaults.plugins.tooltip.bodyColor = '#E5E7EB';
+Chart.defaults.responsive = true;
+Chart.defaults.maintainAspectRatio = false;
+let statusChart, priorityChart, budgetStatusChart, lengthPriorityChart, yearChart, contractorChart, cityChart;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Load CSV data first, then load analytics
+    loadRoadDevelopmentData();
+});
+
+async function loadRoadDevelopmentData() {
+    try {
+        // Show loading status
+        document.getElementById('csvStatus').style.display = 'block';
+        
+        // Load road development CSV data
+        const csvResponse = await fetch('/logistics/api/road-development/load-csv/');
+        const csvData = await csvResponse.json();
+        
+        if (csvData.success) {
+            console.log('Road development CSV loaded successfully');
+        }
+        
+        // Load analytics data
+        const analyticsResponse = await fetch('/logistics/api/road-development/');
+        const analyticsData = await analyticsResponse.json();
+        
+        if (analyticsData.success) {
+            updateStats(analyticsData.data);
+            createCharts(analyticsData.data);
+            populateTables(analyticsData.data);
+        }
+        
+        // Hide loading status
+        document.getElementById('csvStatus').style.display = 'none';
+        
+    } catch (error) {
+        console.error('Error loading road development data:', error);
+        document.getElementById('csvStatus').style.display = 'none';
+    }
+}
+
+function updateStats(data) {
+    document.getElementById('totalProjects').textContent = data.total_projects;
+    document.getElementById('totalBudget').textContent = '₹' + data.total_budget.toFixed(1) + ' Cr';
+    document.getElementById('totalRoadLength').textContent = data.total_road_length.toFixed(1) + ' km';
+    document.getElementById('citiesCovered').textContent = Object.keys(data.city_data).length;
+}
+
+function createCharts(data) {
+    // Status Distribution Chart
+    createStatusChart(data.status_data);
+    
+    // Priority Distribution Chart
+    createPriorityChart(data.priority_data);
+    
+    // Budget by Status Chart
+    createBudgetStatusChart(data.budget_by_status);
+    
+    // Road Length by Priority Chart
+    createLengthPriorityChart(data.length_by_priority);
+    
+    // Year-wise Project Starts Chart
+    createYearChart(data.year_data);
+    
+    // Top Contractors Chart
+    createContractorChart(data.contractor_data);
+    
+    // City Distribution Chart
+    createCityChart(data.city_data);
+}
+
+function createStatusChart(statusData) {
+    const ctx = document.getElementById('statusChart').getContext('2d');
+    
+    if (statusChart) {
+        statusChart.destroy();
+    }
+    
+    statusChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(statusData),
+            datasets: [{
+                data: Object.values(statusData),
+                backgroundColor: [
+                    '#10B981', '#3B82F6', '#F59E0B', '#EF4444'
+                ],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 16 }
+                }
+            }
+        }
+    });
+}
+
+function createPriorityChart(priorityData) {
+    const ctx = document.getElementById('priorityChart').getContext('2d');
+    
+    if (priorityChart) {
+        priorityChart.destroy();
+    }
+    
+    priorityChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: Object.keys(priorityData),
+            datasets: [{
+                data: Object.values(priorityData),
+                backgroundColor: [
+                    '#EF4444', '#F59E0B', '#10B981'
+                ],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 16 }
+                }
+            }
+        }
+    });
+}
+
+function createBudgetStatusChart(budgetData) {
+    const ctx = document.getElementById('budgetStatusChart').getContext('2d');
+    
+    if (budgetStatusChart) {
+        budgetStatusChart.destroy();
+    }
+    
+    budgetStatusChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(budgetData),
+            datasets: [{
+                label: 'Budget (₹ Crores)',
+                data: Object.values(budgetData),
+                backgroundColor: '#3B82F6',
+                borderColor: '#2563EB',
+                borderWidth: 1,
+                borderRadius: 10,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '₹' + value + ' Cr';
+                        }
+                    },
+                    grid: { color: 'rgba(107,114,128,0.15)' }
+                }
+            }
+        }
+    });
+}
+
+function createLengthPriorityChart(lengthData) {
+    const ctx = document.getElementById('lengthPriorityChart').getContext('2d');
+    
+    if (lengthPriorityChart) {
+        lengthPriorityChart.destroy();
+    }
+    
+    lengthPriorityChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(lengthData),
+            datasets: [{
+                label: 'Road Length (km)',
+                data: Object.values(lengthData),
+                backgroundColor: '#10B981',
+                borderColor: '#059669',
+                borderWidth: 1,
+                borderRadius: 10,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return value + ' km';
+                        }
+                    },
+                    grid: { color: 'rgba(107,114,128,0.15)' }
+                }
+            }
+        }
+    });
+}
+
+function createYearChart(yearData) {
+    const ctx = document.getElementById('yearChart').getContext('2d');
+    
+    if (yearChart) {
+        yearChart.destroy();
+    }
+    
+    yearChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: Object.keys(yearData).sort(),
+            datasets: [{
+                label: 'Projects Started',
+                data: Object.keys(yearData).sort().map(year => yearData[year]),
+                borderColor: '#3B82F6',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 3,
+                pointHoverRadius: 5
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    },
+                    grid: { color: 'rgba(107,114,128,0.15)' }
+                }
+            }
+        }
+    });
+}
+
+function createContractorChart(contractorData) {
+    const ctx = document.getElementById('contractorChart').getContext('2d');
+    
+    if (contractorChart) {
+        contractorChart.destroy();
+    }
+    
+    contractorChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(contractorData),
+            datasets: [{
+                label: 'Number of Projects',
+                data: Object.values(contractorData),
+                backgroundColor: '#F59E0B',
+                borderColor: '#D97706',
+                borderWidth: 1,
+                borderRadius: 10,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    },
+                    grid: { color: 'rgba(107,114,128,0.15)' }
+                }
+            }
+        }
+    });
+}
+
+function createCityChart(cityData) {
+    const ctx = document.getElementById('cityChart').getContext('2d');
+    
+    if (cityChart) {
+        cityChart.destroy();
+    }
+    
+    cityChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(cityData),
+            datasets: [{
+                data: Object.values(cityData),
+                backgroundColor: [
+                    '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
+                    '#06B6D4', '#84CC16', '#F97316', '#EC4899', '#6B7280'
+                ],
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 16 }
+                }
+            }
+        }
+    });
+}
+
+function populateTables(data) {
+    // Populate Duration Table
+    const durationTableBody = document.getElementById('durationTableBody');
+    durationTableBody.innerHTML = '';
+    
+    data.duration_stats.forEach(project => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${project.project_name}</td>
+            <td>${project.city}</td>
+            <td>${project.duration}</td>
+            <td>₹${project.budget} Cr</td>
+            <td><span class="status-badge status-${project.status.toLowerCase().replace(' ', '-')}">${project.status}</span></td>
+        `;
+        durationTableBody.appendChild(row);
+    });
+    
+    // Populate Efficiency Table
+    const efficiencyTableBody = document.getElementById('efficiencyTableBody');
+    efficiencyTableBody.innerHTML = '';
+    
+    data.efficiency_stats.forEach(project => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${project.project_name}</td>
+            <td>${project.city}</td>
+            <td>${project.efficiency}</td>
+            <td>${project.road_length} km</td>
+            <td><span class="priority-badge priority-${project.priority.toLowerCase()}">${project.priority}</span></td>
+        `;
+        efficiencyTableBody.appendChild(row);
+    });
+}
+</script>
+{% endblock %}

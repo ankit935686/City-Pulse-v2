@@ -1,0 +1,678 @@
+{% extends 'users/base.html' %}
+
+{% block title %}Bottlenecks & Issues - Officials' Dashboard{% endblock %}
+
+{% block content %}
+<div class="bottlenecks-view" style="padding-left: 1.25rem; padding-right: 1.25rem;">
+    <!-- Header Section -->
+    <div class="page-header">
+        <div class="header-content">
+            <h1 class="page-title">
+                <i class="ri-error-warning-line"></i>
+                Bottlenecks & Issues
+            </h1>
+            <p class="page-subtitle">
+                Identify and analyze project bottlenecks, overlapping areas, and critical issues
+            </p>
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'officials_dashboard' %}" class="btn btn-outline-primary">
+                <i class="ri-arrow-left-line"></i>
+                Back to Officials' Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon critical">
+                <i class="ri-error-warning-line"></i>
+            </div>
+            <div class="stat-content">
+                <h3>Critical Issues</h3>
+                <span class="stat-value" id="criticalIssues">-</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon high">
+                <i class="ri-alert-line"></i>
+            </div>
+            <div class="stat-content">
+                <h3>High Priority</h3>
+                <span class="stat-value" id="highIssues">-</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon medium">
+                <i class="ri-information-line"></i>
+            </div>
+            <div class="stat-content">
+                <h3>Medium Priority</h3>
+                <span class="stat-value" id="mediumIssues">-</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon low">
+                <i class="ri-check-line"></i>
+            </div>
+            <div class="stat-content">
+                <h3>Low Priority</h3>
+                <span class="stat-value" id="lowIssues">-</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Grid -->
+    <div class="charts-grid">
+        <!-- Bottleneck Types -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h3>Bottleneck Types</h3>
+                <p>Distribution of different types of bottlenecks</p>
+            </div>
+            <canvas id="typesChart"></canvas>
+        </div>
+
+        <!-- Severity Levels -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h3>Severity Distribution</h3>
+                <p>Number of bottlenecks by severity level</p>
+            </div>
+            <canvas id="severityChart"></canvas>
+        </div>
+
+        <!-- Department-wise Issues -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h3>Issues by Department</h3>
+                <p>Bottlenecks assigned to different departments</p>
+            </div>
+            <canvas id="departmentChart"></canvas>
+        </div>
+
+        <!-- Resolution Status -->
+        <div class="chart-container">
+            <div class="chart-header">
+                <h3>Resolution Status</h3>
+                <p>Current status of bottleneck resolution</p>
+            </div>
+            <canvas id="statusChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Bottlenecks Table -->
+    <div class="bottlenecks-table-container">
+        <div class="table-header">
+            <h3>All Bottlenecks</h3>
+            <div class="table-filters">
+                <select id="severityFilter" class="form-select">
+                    <option value="">All Severities</option>
+                    <option value="Critical">Critical</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                </select>
+                <select id="statusFilter" class="form-select">
+                    <option value="">All Statuses</option>
+                    <option value="Open">Open</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Resolved">Resolved</option>
+                </select>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover" id="bottlenecksTable">
+                <thead>
+                    <tr>
+                        <th>Project</th>
+                        <th>Location</th>
+                        <th>Type</th>
+                        <th>Severity</th>
+                        <th>Department</th>
+                        <th>Status</th>
+                        <th>Description</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="bottlenecksTableBody">
+                    <!-- Data will be populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+.bottlenecks-view {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 3rem;
+    padding: 2rem;
+    background: linear-gradient(135deg, #F59E0B, #D97706);
+    border-radius: 1rem;
+    color: white;
+}
+
+.header-content h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.header-content p {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    margin: 0;
+}
+
+.btn-outline-primary {
+    background: transparent;
+    border: 2px solid white;
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.75rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-primary:hover {
+    background: white;
+    color: #F59E0B;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+}
+
+.stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.stat-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.stat-icon.critical {
+    background: linear-gradient(135deg, #EF4444, #DC2626);
+}
+
+.stat-icon.high {
+    background: linear-gradient(135deg, #F59E0B, #D97706);
+}
+
+.stat-icon.medium {
+    background: linear-gradient(135deg, #3B82F6, #2563EB);
+}
+
+.stat-icon.low {
+    background: linear-gradient(135deg, #10B981, #059669);
+}
+
+.stat-content h3 {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--secondary-foreground);
+    margin: 0 0 0.25rem 0;
+}
+
+.stat-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--foreground);
+}
+
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+    gap: 2rem;
+    margin-bottom: 3rem;
+}
+
+.chart-container {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.chart-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.chart-header h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--foreground);
+}
+
+.chart-header p {
+    color: var(--secondary-foreground);
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+canvas {
+    max-height: 400px;
+}
+
+.bottlenecks-table-container {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.table-header h3 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--foreground);
+}
+
+.table-filters {
+    display: flex;
+    gap: 1rem;
+}
+
+.form-select {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    background: var(--background);
+    color: var(--foreground);
+    font-size: 0.875rem;
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table th,
+.table td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.table th {
+    background: var(--secondary);
+    font-weight: 600;
+    color: var(--foreground);
+}
+
+.table tbody tr:hover {
+    background: var(--secondary);
+}
+
+.severity-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.severity-badge.critical {
+    background: #FEE2E2;
+    color: #DC2626;
+}
+
+.severity-badge.high {
+    background: #FEF3C7;
+    color: #D97706;
+}
+
+.severity-badge.medium {
+    background: #DBEAFE;
+    color: #2563EB;
+}
+
+.severity-badge.low {
+    background: #D1FAE5;
+    color: #059669;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.status-badge.open {
+    background: #FEE2E2;
+    color: #DC2626;
+}
+
+.status-badge.in-progress {
+    background: #FEF3C7;
+    color: #D97706;
+}
+
+.status-badge.resolved {
+    background: #D1FAE5;
+    color: #059669;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    border-radius: 0.5rem;
+}
+
+@media (max-width: 768px) {
+    .bottlenecks-view {
+        padding: 1rem;
+    }
+    
+    .page-header {
+        flex-direction: column;
+        text-align: center;
+        gap: 1rem;
+    }
+    
+    .header-content h1 {
+        font-size: 2rem;
+    }
+    
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .chart-container {
+        padding: 1rem;
+    }
+    
+    .table-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: stretch;
+    }
+    
+    .table-filters {
+        flex-direction: column;
+    }
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Chart.js global modern theme
+Chart.defaults.font.family = "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial";
+Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--secondary-foreground') || '#6B7280';
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.legend.labels.pointStyle = 'circle';
+Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(17, 24, 39, 0.9)';
+Chart.defaults.plugins.tooltip.titleColor = '#fff';
+Chart.defaults.plugins.tooltip.bodyColor = '#E5E7EB';
+Chart.defaults.responsive = true;
+Chart.defaults.maintainAspectRatio = false;
+document.addEventListener('DOMContentLoaded', function() {
+    loadBottlenecksData();
+    setupFilters();
+});
+
+async function loadBottlenecksData() {
+    try {
+        const response = await fetch('/logistics/api/bottlenecks/');
+        const data = await response.json();
+        
+        if (data.success) {
+            updateStats(data.data);
+            createCharts(data.data);
+            populateTable(data.data.bottlenecks);
+        }
+    } catch (error) {
+        console.error('Error loading bottlenecks data:', error);
+    }
+}
+
+function updateStats(data) {
+    const severityStats = data.severity_stats;
+    
+    severityStats.forEach(item => {
+        if (item.severity_level === 'Critical') {
+            document.getElementById('criticalIssues').textContent = item.count;
+        } else if (item.severity_level === 'High') {
+            document.getElementById('highIssues').textContent = item.count;
+        } else if (item.severity_level === 'Medium') {
+            document.getElementById('mediumIssues').textContent = item.count;
+        } else if (item.severity_level === 'Low') {
+            document.getElementById('lowIssues').textContent = item.count;
+        }
+    });
+}
+
+function createCharts(data) {
+    // Bottleneck Types Chart
+    const typesCtx = document.getElementById('typesChart').getContext('2d');
+    new Chart(typesCtx, {
+        type: 'bar',
+        data: {
+            labels: data.type_stats.map(item => item.bottleneck_type),
+            datasets: [{
+                label: 'Number of Issues',
+                data: data.type_stats.map(item => item.count),
+                backgroundColor: 'rgba(245, 158, 11, 0.8)',
+                borderColor: 'rgba(245, 158, 11, 1)',
+                borderWidth: 1,
+                borderRadius: 10,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Number of Issues'
+                    },
+                    grid: { color: 'rgba(107,114,128,0.15)' }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Severity Distribution Chart
+    const severityCtx = document.getElementById('severityChart').getContext('2d');
+    new Chart(severityCtx, {
+        type: 'doughnut',
+        data: {
+            labels: data.severity_stats.map(item => item.severity_level),
+            datasets: [{
+                data: data.severity_stats.map(item => item.count),
+                backgroundColor: ['#EF4444', '#F59E0B', '#3B82F6', '#10B981'],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 16 }
+                }
+            }
+        }
+    });
+
+    // Department Issues Chart
+    const departmentCtx = document.getElementById('departmentChart').getContext('2d');
+    new Chart(departmentCtx, {
+        type: 'bar',
+        data: {
+            labels: data.department_stats.map(item => item.responsible_department),
+            datasets: [{
+                label: 'Number of Issues',
+                data: data.department_stats.map(item => item.count),
+                backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                borderColor: 'rgba(59, 130, 246, 1)',
+                borderWidth: 1,
+                borderRadius: 10,
+                borderSkipped: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Number of Issues'
+                    },
+                    grid: { color: 'rgba(107,114,128,0.15)' }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Resolution Status Chart
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    new Chart(statusCtx, {
+        type: 'pie',
+        data: {
+            labels: data.status_stats.map(item => item.current_status),
+            datasets: [{
+                data: data.status_stats.map(item => item.count),
+                backgroundColor: ['#EF4444', '#F59E0B', '#10B981'],
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 16 }
+                }
+            }
+        }
+    });
+}
+
+function populateTable(bottlenecks) {
+    const tbody = document.getElementById('bottlenecksTableBody');
+    tbody.innerHTML = '';
+    
+    bottlenecks.forEach(bottleneck => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><strong>${bottleneck.project_name}</strong></td>
+            <td>${bottleneck.location}</td>
+            <td>${bottleneck.type}</td>
+            <td><span class="severity-badge ${bottleneck.severity.toLowerCase()}">${bottleneck.severity}</span></td>
+            <td>${bottleneck.department}</td>
+            <td><span class="status-badge ${bottleneck.status.toLowerCase().replace(' ', '-')}">${bottleneck.status}</span></td>
+            <td>${bottleneck.description}</td>
+            <td>
+                <button class="btn btn-sm btn-primary" onclick="viewDetails('${bottleneck.id}')">
+                    <i class="ri-eye-line"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function setupFilters() {
+    const severityFilter = document.getElementById('severityFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    
+    severityFilter.addEventListener('change', filterTable);
+    statusFilter.addEventListener('change', filterTable);
+}
+
+function filterTable() {
+    const severityFilter = document.getElementById('severityFilter').value;
+    const statusFilter = document.getElementById('statusFilter').value;
+    
+    const rows = document.querySelectorAll('#bottlenecksTableBody tr');
+    
+    rows.forEach(row => {
+        const severity = row.querySelector('.severity-badge').textContent;
+        const status = row.querySelector('.status-badge').textContent;
+        
+        const severityMatch = !severityFilter || severity === severityFilter;
+        const statusMatch = !statusFilter || status === statusFilter;
+        
+        if (severityMatch && statusMatch) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+function viewDetails(bottleneckId) {
+    // This function can be expanded to show detailed information
+    alert(`Viewing details for bottleneck: ${bottleneckId}`);
+}
+</script>
+{% endblock %}

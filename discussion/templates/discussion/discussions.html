@@ -1,0 +1,1168 @@
+{% extends 'users/base.html' %}
+
+{% block title %}Community Discussions - Smart City{% endblock %}
+
+{% block content %}
+<div class="discussions-page">
+    <div class="feed-header">
+        <button id="openCreateDiscussionBtn" class="btn btn-primary">
+            <i class="ri-add-line"></i> Start New Discussion
+        </button>
+    </div>
+
+    <div class="feed-list">
+        {% for discussion in discussions %}
+        <article class="post-card" data-discussion-id="{{ discussion.id }}">
+            <header class="post-header">
+                <div class="post-meta">
+                    <span class="author">@{{ discussion.user.username }}</span>
+                    <span class="dot">•</span>
+                    <time class="date">{{ discussion.created_at|date:"M d, Y" }}</time>
+                </div>
+                <h3 class="post-title">{{ discussion.title }}</h3>
+            </header>
+            <div class="post-body">
+                <p class="post-content">{{ discussion.content }}</p>
+                {% if discussion.image %}
+                    <img src="{{ discussion.image.url }}" alt="Post image" class="post-image">
+                {% endif %}
+                {% if discussion.location_name %}
+                    <div class="post-location"><i class="ri-map-pin-line"></i> {{ discussion.location_name }}</div>
+                {% endif %}
+            </div>
+            <footer class="post-actions">
+                <button class="btn-action upvote-btn {% if user in discussion.likes.all %}active{% endif %}" aria-pressed="{% if user in discussion.likes.all %}true{% else %}false{% endif %}" title="Upvote">
+                    <i class="ri-arrow-up-s-line"></i>
+                    <span class="count" data-upvotes-count>{{ discussion.likes.count }}</span>
+                </button>
+                <button class="btn-action comment-btn" data-toggle-comments title="Comment">
+                    <i class="ri-chat-1-line"></i>
+                    <span class="count">{{ discussion.comments.count }}</span>
+                </button>
+                <button class="btn-action share-btn" data-share-count="0" title="Share">
+                    <i class="ri-share-forward-line"></i>
+                    <span class="count" data-share-count-label>0</span>
+                </button>
+                {% if request.user == discussion.user or request.user.is_staff %}
+                <button class="btn-action delete-btn" data-delete title="Delete">
+                    <i class="ri-delete-bin-6-line"></i>
+                </button>
+                {% endif %}
+            </footer>
+
+
+        </article>
+        {% empty %}
+        <div class="empty-feed">No discussions yet. Start the first one!</div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Create Discussion Modal -->
+<div class="modal" id="createDiscussionModal">
+    <!-- Modal content here -->
+</div>
+
+<!-- Comments Card -->
+<div class="comments-card" id="commentsCard" hidden>
+    <div class="comments-card-header">
+        <h3>Comments</h3>
+        <button class="close-btn" data-close-comments>&times;</button>
+    </div>
+    <div class="comments-content" id="commentsContent">
+        <!-- Comments will be loaded here -->
+    </div>
+    <div class="comments-actions">
+        <button class="btn btn-primary" id="addCommentBtn">Add Comment</button>
+    </div>
+</div>
+
+<!-- Comment Modal -->
+<div class="modal" id="commentModal">
+    <!-- Modal content here -->
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const createBtn = document.getElementById('openCreateDiscussionBtn');
+    if (createBtn) {
+        createBtn.addEventListener('click', () => openCreateDiscussionModal());
+    }
+
+    // Initialize share counts from localStorage
+    const postCards = document.querySelectorAll('.post-card');
+    postCards.forEach(card => {
+        const id = card.dataset.discussionId;
+        const saved = localStorage.getItem(`shareCount:${id}`);
+        const label = card.querySelector('[data-share-count-label]');
+        if (saved && label) label.textContent = saved;
+    });
+
+    // Event delegation for action buttons
+    document.body.addEventListener('click', async (e) => {
+        const upvoteBtn = e.target.closest('.upvote-btn');
+        const commentBtn = e.target.closest('[data-toggle-comments]');
+        const shareBtn = e.target.closest('.share-btn');
+        const deleteBtn = e.target.closest('[data-delete]');
+        const closeCommentsBtn = e.target.closest('[data-close-comments]');
+        const addCommentBtn = e.target.closest('#addCommentBtn');
+
+        if (upvoteBtn) {
+            const card = upvoteBtn.closest('.post-card');
+            if (!card) return;
+            const discussionId = card.dataset.discussionId;
+            await handleToggleUpvote(upvoteBtn, discussionId);
+            return;
+        }
+
+        if (commentBtn) {
+            const card = commentBtn.closest('.post-card');
+            if (!card) return;
+            const discussionId = card.dataset.discussionId;
+            openCommentsCard(discussionId);
+            return;
+        }
+
+        if (shareBtn) {
+            const card = shareBtn.closest('.post-card');
+            if (!card) return;
+            const discussionId = card.dataset.discussionId;
+            await handleShare(card, discussionId);
+            return;
+        }
+
+        if (deleteBtn) {
+            const card = deleteBtn.closest('.post-card');
+            if (!card) return;
+            const discussionId = card.dataset.discussionId;
+            await handleDeleteDiscussion(card, discussionId);
+            return;
+        }
+
+        if (closeCommentsBtn) {
+            closeCommentsCard();
+            return;
+        }
+
+        if (addCommentBtn) {
+            const discussionId = addCommentBtn.dataset.discussionId;
+            openCommentModal(discussionId);
+            return;
+        }
+    });
+});
+
+function openCreateDiscussionModal() {
+    const modalHtml = `
+        <div class="modal-overlay" data-close-modal="createDiscussionModal">
+            <div class="modal-content composer" onclick="event.stopPropagation()">
+                <div class="composer-topbar">
+                    <div class="audience">
+                        <i class="ri-global-line"></i>
+                        <span>Everyone</span>
+                        <i class="ri-arrow-down-s-line"></i>
+                    </div>
+                    <div class="tabs" role="tablist">
+                        <button type="button" class="tab" data-tab="question" aria-selected="false">Add Question</button>
+                        <button type="button" class="tab active" data-tab="post" aria-selected="true">Create Post</button>
+                    </div>
+                    <button class="close-btn" data-close-modal="createDiscussionModal" aria-label="Close">&times;</button>
+                </div>
+
+                <form id="createDiscussionForm" enctype="multipart/form-data">
+                    <div class="composer-header-row">
+                        <div class="avatar" aria-hidden="true"></div>
+                        <div class="user-meta">
+                            <div class="user-name">@{{ request.user.username }}</div>
+                            
+                        </div>
+                    </div>
+
+                    <div class="composer-body">
+                        <!-- Question Pane -->
+                        <div class="pane pane-question" data-pane="question" hidden>
+                            <div class="form-group">
+                                <label for="questionTitle">Question title</label>
+                                <input type="text" id="questionTitle" class="form-control" placeholder="What do you want to ask?">
+                            </div>
+                            <div class="form-group">
+                                <label for="questionDesc">Description</label>
+                                <textarea id="questionDesc" class="form-control" placeholder="Add more details..." rows="4"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Post Pane -->
+                        <div class="pane pane-post" data-pane="post">
+                            <div class="form-group">
+                                <label for="postTitle">Title</label>
+                                <input type="text" id="postTitle" class="form-control" placeholder="Title">
+                            </div>
+                            <textarea id="composerContent" class="composer-textarea" placeholder="Say something..." rows="5"></textarea>
+
+                            <div id="imagePreview" class="image-preview" hidden>
+                                <img id="imagePreviewImg" alt="Selected image" />
+                                <button type="button" class="remove-image" id="removeImageBtn" aria-label="Remove image">
+                                    <i class="ri-close-line"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <input type="file" id="image" name="image" accept="image/*" hidden>
+
+                    <div class="composer-footer">
+                        <div class="composer-tools">
+                            <button type="button" class="tool" title="Format">Aa</button>
+                            <button type="button" class="tool" id="addImageBtn" title="Add image">
+                                <i class="ri-image-add-line"></i>
+                            </button>
+                        </div>
+                        <div class="composer-spacer"></div>
+                        <div class="composer-actions">
+                            <button type="submit" class="btn btn-primary" id="postSubmitBtn" disabled>Post</button>
+                        </div>
+                    </div>
+
+                    <!-- Hidden fields used when submitting -->
+                    <input type="hidden" id="location_name" name="location_name">
+                    <input type="hidden" id="latitude" name="latitude">
+                    <input type="hidden" id="longitude" name="longitude">
+                </form>
+            </div>
+        </div>`;
+
+    const modalContainer = document.getElementById('createDiscussionModal');
+    modalContainer.innerHTML = modalHtml;
+    modalContainer.style.display = 'block';
+
+    modalContainer.addEventListener('click', handleModalBackdropClick);
+    const form = modalContainer.querySelector('#createDiscussionForm');
+    const postPane = modalContainer.querySelector('.pane-post');
+    const questionPane = modalContainer.querySelector('.pane-question');
+    const tabs = modalContainer.querySelectorAll('.tab');
+    const postBtn = modalContainer.querySelector('#postSubmitBtn');
+    const textarea = modalContainer.querySelector('#composerContent');
+    const postTitle = modalContainer.querySelector('#postTitle');
+    const qTitle = modalContainer.querySelector('#questionTitle');
+    const qDesc = modalContainer.querySelector('#questionDesc');
+    const fileInput = modalContainer.querySelector('#image');
+    const addImageBtn = modalContainer.querySelector('#addImageBtn');
+    const preview = modalContainer.querySelector('#imagePreview');
+    const previewImg = modalContainer.querySelector('#imagePreviewImg');
+    const removeImageBtn = modalContainer.querySelector('#removeImageBtn');
+
+    let activeMode = 'post';
+
+    const setMode = (mode) => {
+        activeMode = mode;
+        
+        // Update tab states
+        tabs.forEach(t => {
+            const isActive = t.getAttribute('data-tab') === mode;
+            t.classList.toggle('active', isActive);
+            t.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        });
+        
+        // Smooth transition between panes
+        if (mode === 'post') {
+            // Fade out question pane
+            questionPane.style.opacity = '0';
+            questionPane.style.transform = 'translateX(-20px)';
+            
+            setTimeout(() => {
+                questionPane.hidden = true;
+                postPane.hidden = false;
+                
+                // Fade in post pane
+                requestAnimationFrame(() => {
+                    postPane.style.opacity = '0';
+                    postPane.style.transform = 'translateX(20px)';
+                    
+                    requestAnimationFrame(() => {
+                        postPane.style.opacity = '1';
+                        postPane.style.transform = 'translateX(0)';
+                    });
+                });
+            }, 150);
+            
+            postBtn.textContent = 'Post';
+        } else {
+            // Fade out post pane
+            postPane.style.opacity = '0';
+            postPane.style.transform = 'translateX(-20px)';
+            
+            setTimeout(() => {
+                postPane.hidden = true;
+                questionPane.hidden = false;
+                
+                // Fade in question pane
+                requestAnimationFrame(() => {
+                    questionPane.style.opacity = '0';
+                    questionPane.style.transform = 'translateX(20px)';
+                    
+                    requestAnimationFrame(() => {
+                        questionPane.style.opacity = '1';
+                        questionPane.style.transform = 'translateX(0)';
+                    });
+                });
+            }, 150);
+            
+            postBtn.textContent = 'Ask';
+        }
+        
+        updateSubmitEnabled();
+    };
+
+    tabs.forEach(tab => tab.addEventListener('click', () => setMode(tab.getAttribute('data-tab'))));
+
+    const updateSubmitEnabled = () => {
+        if (activeMode === 'post') {
+            const hasTitle = (postTitle.value || '').trim().length > 0;
+            const hasText = (textarea.value || '').trim().length > 0;
+            const hasImage = fileInput.files && fileInput.files.length > 0;
+            postBtn.disabled = !(hasTitle && (hasText || hasImage));
+        } else {
+            const hasTitle = (qTitle.value || '').trim().length > 0;
+            postBtn.disabled = !hasTitle;
+        }
+    };
+
+    [textarea, postTitle, qTitle, qDesc].forEach(el => el && el.addEventListener('input', updateSubmitEnabled));
+
+    addImageBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files && fileInput.files[0]) {
+            const file = fileInput.files[0];
+            const url = URL.createObjectURL(file);
+            previewImg.src = url;
+            preview.hidden = false;
+        } else {
+            preview.hidden = true;
+            previewImg.removeAttribute('src');
+        }
+        updateSubmitEnabled();
+    });
+
+    if (removeImageBtn) {
+        removeImageBtn.addEventListener('click', () => {
+            fileInput.value = '';
+            preview.hidden = true;
+            previewImg.removeAttribute('src');
+            updateSubmitEnabled();
+        });
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData();
+        if (activeMode === 'post') {
+            fd.set('title', (postTitle.value || '').trim());
+            fd.set('content', (textarea.value || '').trim());
+            if (fileInput.files && fileInput.files[0]) {
+                fd.set('image', fileInput.files[0]);
+            }
+        } else {
+            fd.set('title', (qTitle.value || '').trim());
+            fd.set('content', (qDesc.value || '').trim());
+        }
+        // Forward to backend
+        try {
+            const response = await fetch("{% url 'create_discussion' %}", {
+                method: 'POST',
+                body: fd,
+                headers: { 'X-CSRFToken': getCookie('csrftoken') }
+            });
+            const data = await response.json();
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('Error creating discussion: ' + data.error);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Error creating discussion');
+        }
+    });
+
+    // Initialize
+    setMode('post');
+}
+
+function openCommentModal(discussionId) {
+    const modalHtml = `
+        <div class="modal-overlay" data-close-modal="commentModal">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <div class="modal-header">
+                    <h3>Add Comment</h3>
+                    <button class="close-btn" data-close-modal="commentModal">&times;</button>
+                </div>
+                <form id="commentForm">
+                    <div class="form-group">
+                        <label for="commentContent">Your Comment</label>
+                        <textarea id="commentContent" name="content" required class="form-control"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Submit Comment</button>
+                </form>
+            </div>
+        </div>`;
+
+    const modalContainer = document.getElementById('commentModal');
+    modalContainer.innerHTML = modalHtml;
+    modalContainer.style.display = 'block';
+    modalContainer.addEventListener('click', handleModalBackdropClick);
+    modalContainer.querySelector('#commentForm').addEventListener('submit', (e) => handleAddComment(e, discussionId));
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'none';
+        modal.innerHTML = '';
+    }
+}
+
+function handleModalBackdropClick(e) {
+    const overlay = e.target.closest('.modal-overlay');
+    const closeButton = e.target.closest('[data-close-modal]');
+    const modalId = overlay ? overlay.getAttribute('data-close-modal') : (closeButton ? closeButton.getAttribute('data-close-modal') : null);
+    if (modalId) closeModal(modalId);
+}
+
+async function handleCreateDiscussion(e) {
+    e.preventDefault();
+    const form = e.target;
+    const formData = new FormData(form);
+    // Derive title from first line of content if empty
+    const content = (form.get('content') || '').toString();
+    let title = (form.get('title') || '').toString();
+    if (!title.trim()) {
+        title = content.split(/\n/)[0].trim().slice(0, 80) || 'New post';
+        formData.set('title', title);
+    }
+
+    try {
+        const response = await fetch("{% url 'create_discussion' %}", {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Error creating discussion: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error creating discussion');
+    }
+}
+
+async function handleAddComment(e, discussionId) {
+    e.preventDefault();
+    const content = document.getElementById('commentContent').value;
+
+    try {
+        const response = await fetch(`/discussions/${discussionId}/comment/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({ content })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            // Add the new comment to the comments card
+            const commentsContent = document.getElementById('commentsContent');
+            const commentHtml = `
+                <div class="comment-item">
+                    <div class="comment-header">
+                        <strong>@${data.username}</strong>
+                        <span class="comment-date">${data.created_at}</span>
+                    </div>
+                    <p class="comment-content">${data.content}</p>
+                </div>`;
+            
+            // If there are existing comments, add to the list
+            if (commentsContent.querySelector('.comments-list')) {
+                commentsContent.querySelector('.comments-list').insertAdjacentHTML('beforeend', commentHtml);
+            } else {
+                // If no existing comments, create the list structure
+                commentsContent.innerHTML = `
+                    <div class="comments-list">
+                        ${commentHtml}
+                    </div>
+                `;
+            }
+            
+            // Update the comment counter on the post card
+            const card = document.querySelector(`.post-card[data-discussion-id="${discussionId}"]`);
+            const commentCountEl = card ? card.querySelector('.comment-btn .count') : null;
+            if (commentCountEl) {
+                const currentCount = parseInt(commentCountEl.textContent || '0');
+                commentCountEl.textContent = String(currentCount + 1);
+            }
+            
+            // Close the comment modal
+            closeModal('commentModal');
+            
+            // Show success message
+            alert('Comment added successfully!');
+        } else {
+            alert('Error adding comment: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error adding comment');
+    }
+}
+
+async function handleToggleUpvote(buttonEl, discussionId) {
+    try {
+        const response = await fetch(`/discussions/${discussionId}/upvote/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        });
+        const data = await response.json();
+        if (data.success) {
+            const countEl = buttonEl.querySelector('[data-upvotes-count]');
+            if (countEl) countEl.textContent = data.upvotes_count;
+            buttonEl.classList.toggle('active', !!data.upvoted);
+            buttonEl.setAttribute('aria-pressed', data.upvoted ? 'true' : 'false');
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error(error);
+        alert('Failed to upvote.');
+    }
+}
+
+async function handleShare(card, discussionId) {
+    const url = `${window.location.origin}/discussions/`;
+    try {
+        if (navigator.share) {
+            await navigator.share({ title: 'Check this discussion', url });
+        } else {
+            await navigator.clipboard.writeText(url);
+            alert('Link copied to clipboard');
+        }
+        const label = card.querySelector('[data-share-count-label]');
+        if (label) {
+            const next = String(parseInt(label.textContent || '0') + 1);
+            label.textContent = next;
+            localStorage.setItem(`shareCount:${discussionId}`, next);
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function openCommentsCard(discussionId) {
+    const commentsCard = document.getElementById('commentsCard');
+    const commentsContent = document.getElementById('commentsContent');
+    const addCommentBtn = document.getElementById('addCommentBtn');
+    
+    // Set the discussion ID for the add comment button
+    addCommentBtn.dataset.discussionId = discussionId;
+    
+    // Load comments for this discussion
+    loadComments(discussionId, commentsContent);
+    
+    // Show the comments card
+    commentsCard.hidden = false;
+}
+
+function closeCommentsCard() {
+    const commentsCard = document.getElementById('commentsCard');
+    commentsCard.hidden = true;
+}
+
+async function loadComments(discussionId, container) {
+    // Get the discussion card to extract comments
+    const discussionCard = document.querySelector(`[data-discussion-id="${discussionId}"]`);
+    if (!discussionCard) return;
+    
+    // Get comments from the discussion data (you might need to adjust this based on your data structure)
+    const commentCount = discussionCard.querySelector('.comment-btn .count').textContent;
+    
+    if (parseInt(commentCount) === 0) {
+        container.innerHTML = '<div class="no-comments">No comments yet. Be the first to comment!</div>';
+        return;
+    }
+    
+    // Show loading state
+    container.innerHTML = '<div class="loading-comments">Loading comments...</div>';
+    
+    try {
+        // Fetch actual comments from the server
+        const response = await fetch(`/discussions/${discussionId}/comments/`, {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.comments) {
+                const commentsHtml = data.comments.map(comment => `
+                    <div class="comment-item">
+                        <div class="comment-header">
+                            <strong>@${comment.username}</strong>
+                            <span class="comment-date">${comment.created_at}</span>
+                        </div>
+                        <p class="comment-content">${comment.content}</p>
+                    </div>
+                `).join('');
+                
+                container.innerHTML = `
+                    <div class="comments-list">
+                        ${commentsHtml}
+                    </div>
+                `;
+            } else {
+                container.innerHTML = '<div class="no-comments">Error loading comments</div>';
+            }
+        } else {
+            // Fallback to showing sample comments if API endpoint doesn't exist yet
+            container.innerHTML = `
+                <div class="comments-list">
+                    <div class="comment-item">
+                        <div class="comment-header">
+                            <strong>@user</strong>
+                            <span class="comment-date">Just now</span>
+                        </div>
+                        <p class="comment-content">This is a sample comment. The API endpoint for fetching comments needs to be implemented.</p>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading comments:', error);
+        // Fallback to showing sample comments
+        container.innerHTML = `
+            <div class="comments-list">
+                <div class="comment-item">
+                    <div class="comment-header">
+                        <strong>@user</strong>
+                        <span class="comment-date">Just now</span>
+                    </div>
+                    <p class="comment-content">This is a sample comment. The API endpoint for fetching comments needs to be implemented.</p>
+                </div>
+            </div>
+        `;
+    }
+}
+
+async function handleDeleteDiscussion(card, discussionId) {
+    if (!confirm('Delete this discussion?')) return;
+    try {
+        const response = await fetch(`/discussions/${discussionId}/delete/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        });
+        const data = await response.json();
+        if (data.success) {
+            card.remove();
+        } else {
+            alert('Error deleting discussion: ' + data.error);
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Failed to delete');
+    }
+}
+
+function getCurrentLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((position) => {
+            document.getElementById('latitude').value = position.coords.latitude;
+            document.getElementById('longitude').value = position.coords.longitude;
+            // You could also reverse geocode here to get the location name
+            alert('Location captured successfully!');
+        }, (error) => {
+            console.error('Error getting location:', error);
+            alert('Error getting location. Please try again or enter location manually.');
+        });
+    } else {
+        alert('Geolocation is not supported by your browser.');
+    }
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+
+<style>
+.discussions-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+.feed-header {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 1rem;
+}
+
+.feed-list { 
+    display: grid; 
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem; 
+    align-items: stretch;
+}
+
+.post-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    padding: 1.75rem;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.post-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+.post-header { 
+    margin-bottom: 1rem; 
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+.post-meta { color: var(--muted-foreground); font-size: 0.9rem; display: flex; gap: 0.5rem; align-items: center; }
+.post-title { 
+    margin: 0.25rem 0 0.75rem 0; 
+    font-size: 1.25rem; 
+    font-weight: 700; 
+    line-height: 1.3;
+}
+.post-content { 
+    margin: 0 0 1rem 0; 
+    line-height: 1.7; 
+    font-size: 1rem;
+    flex: 1;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 8;
+    -webkit-box-orient: vertical;
+}
+.post-image { 
+    width: 100%; 
+    height: auto; 
+    max-height: 280px; 
+    object-fit: cover; 
+    border-radius: 12px; 
+    border: 1px solid var(--border); 
+    margin: 0.75rem 0; 
+}
+.post-location { 
+    color: var(--muted-foreground); 
+    font-size: 0.9rem; 
+    margin-top: 0.5rem; 
+    padding: 0.5rem 0.75rem;
+    background: var(--secondary);
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: fit-content;
+}
+
+.post-actions {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    border-top: 1px solid var(--border);
+    margin-top: auto;
+    padding-top: 1rem;
+}
+
+.btn-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--foreground);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    position: relative;
+}
+.btn-action:hover { 
+    border-color: var(--purple-600); 
+    background: rgba(147, 51, 234, 0.1);
+    color: var(--purple-600);
+    transform: translateY(-1px);
+}
+.btn-action .count { 
+    color: var(--foreground); 
+    font-weight: 500; 
+    font-size: 0.85rem;
+    margin-left: 0.25rem;
+}
+.btn-action.active { 
+    background: var(--purple-600); 
+    border-color: var(--purple-600); 
+    color: white; 
+    box-shadow: 0 2px 8px rgba(147, 51, 234, 0.3);
+}
+
+.btn-action.active .count { 
+    color: white; 
+    font-weight: 600;
+}
+
+/* Special styling for upvote button */
+.upvote-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--foreground);
+}
+
+.upvote-btn:hover {
+    border-color: var(--purple-600);
+    background: rgba(147, 51, 234, 0.1);
+    color: var(--purple-600);
+}
+
+.upvote-btn.active {
+    background: var(--purple-600);
+    border-color: var(--purple-600);
+    color: white;
+    box-shadow: 0 2px 8px rgba(147, 51, 234, 0.3);
+}
+
+/* Simpler styling for other action buttons */
+.comment-btn,
+.share-btn,
+.delete-btn {
+    background: transparent;
+    border: none;
+    color: var(--foreground);
+    padding: 0.5rem;
+}
+
+.comment-btn:hover,
+.share-btn:hover,
+.delete-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+}
+
+.delete-btn:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+}
+
+.comments-section { margin: 0.75rem 0 0.5rem 0; }
+.comment { padding: 0.5rem 0; border-bottom: 1px dashed var(--border); }
+.comment:last-child { border-bottom: none; }
+.comment-header { display: flex; gap: 0.5rem; align-items: center; color: var(--muted-foreground); font-size: 0.9rem; }
+.comment-content { margin: 0.25rem 0 0 0; }
+.no-comments { color: var(--muted-foreground); font-style: italic; padding: 0.5rem 0; }
+.empty-feed { text-align: center; color: var(--muted-foreground); padding: 2rem 0; }
+
+/* Comments Card */
+.comments-card {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    z-index: 1001;
+    display: flex;
+    flex-direction: column;
+}
+
+.comments-card::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: -1;
+}
+
+.comments-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem 1.5rem 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.comments-card-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.comments-content {
+    flex: 1;
+    padding: 1rem 1.5rem;
+    overflow-y: auto;
+    max-height: 50vh;
+}
+
+.comments-actions {
+    padding: 1rem 1.5rem 1.5rem 1.5rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: center;
+}
+
+.comment-item {
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.comment-item:last-child {
+    border-bottom: none;
+}
+
+.comment-header {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    color: var(--muted-foreground);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.comment-content {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.loading-comments {
+    text-align: center;
+    color: var(--muted-foreground);
+    padding: 2rem 0;
+}
+
+.no-comments {
+    text-align: center;
+    color: var(--muted-foreground);
+    padding: 2rem 0;
+    font-style: italic;
+}
+
+/* Responsive breakpoints */
+@media (max-width: 768px) {
+    .feed-list {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+    
+    .discussions-page {
+        max-width: 100%;
+        padding: 0.75rem;
+    }
+    
+    .post-card {
+        padding: 1.25rem;
+    }
+    
+    .post-title {
+        font-size: 1.15rem;
+    }
+    
+    .post-content {
+        font-size: 0.95rem;
+    }
+}
+
+@media (max-width: 1200px) {
+    .feed-list {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.25rem;
+    }
+}
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.modal-content {
+    background: var(--card);
+    padding: 1.25rem;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 580px;
+    max-height: 85vh;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.close-btn { 
+    background: none; 
+    border: none; 
+    font-size: 1.5rem; 
+    cursor: pointer; 
+    color: var(--foreground);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+    background: var(--secondary);
+    color: var(--foreground);
+}
+.form-group { margin-bottom: 1rem; }
+.form-control { width: 100%; padding: 0.6rem; border: 1px solid var(--border); border-radius: 8px; margin-top: 0.25rem; }
+
+/* Composer (create post) */
+.composer { padding: 0; }
+.composer-topbar {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: .5rem;
+    padding: .75rem 1rem;
+    border-bottom: 1px solid var(--border);
+}
+.composer-topbar .audience { color: var(--secondary-foreground); display: inline-flex; gap: .35rem; align-items: center; }
+.composer-topbar .tabs { display: inline-flex; background: var(--secondary); border-radius: 999px; padding: .25rem; }
+.composer-topbar .tab { 
+    color: var(--secondary-foreground); 
+    background: transparent; 
+    border: none; 
+    padding: .35rem .9rem; 
+    border-radius: 999px; 
+    cursor: pointer; 
+    transition: all 0.25s ease;
+    position: relative;
+}
+
+.composer-topbar .tab.active { 
+    color: var(--primary-foreground); 
+    background: var(--purple-600); 
+    transform: scale(1.05);
+}
+
+.composer-topbar .tab:hover:not(.active) {
+    background: var(--secondary);
+    color: var(--foreground);
+}
+
+.composer-topbar .tab:focus { 
+    outline: 2px solid #3b82f6; 
+    outline-offset: 1px; 
+}
+
+.composer-header-row { display: grid; grid-template-columns: 40px 1fr; gap: .75rem; padding: 1rem; }
+.composer-header-row .avatar { width: 40px; height: 40px; background: #cbd5e1; border-radius: 999px; }
+.composer-header-row .user-name { font-weight: 600; }
+.chip { background: #1f2937; color: #e5e7eb; border: 1px solid #374151; border-radius: 999px; padding: .25rem .6rem; font-size: .85rem; }
+
+.composer-body { 
+    padding: 0 1rem 1rem 1rem; 
+    position: relative;
+    min-height: 200px;
+    transition: height 0.3s ease;
+}
+
+.pane { 
+    transition: all 0.3s ease;
+    opacity: 1;
+    transform: translateX(0);
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: var(--card);
+}
+
+.pane[hidden] {
+    opacity: 0;
+    transform: translateX(20px);
+    pointer-events: none;
+}
+
+.pane-post {
+    position: relative;
+}
+.composer-textarea { 
+    width: 100%; 
+    min-height: 120px; 
+    resize: vertical; 
+    background: transparent; 
+    color: inherit; 
+    border: none; 
+    outline: none; 
+    font-size: 1rem; 
+    transition: all 0.3s ease;
+}
+
+.form-group {
+    transition: all 0.3s ease;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.form-group[hidden] {
+    opacity: 0;
+    transform: translateY(10px);
+    pointer-events: none;
+}
+
+.image-preview { position: relative; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: .5rem; }
+.image-preview img { display: block; width: 100%; height: auto; }
+.image-preview .remove-image { position: absolute; top: .5rem; right: .5rem; border: none; background: rgba(0,0,0,.6); color: #fff; border-radius: 999px; width: 28px; height: 28px; display: grid; place-items: center; cursor: pointer; }
+
+.composer-footer { display: flex; align-items: center; gap: .5rem; padding: .75rem 1rem; border-top: 1px solid var(--border); }
+.composer-tools { display: inline-flex; gap: .5rem; }
+.composer-tools .tool { border: 1px solid var(--border); background: var(--secondary); color: var(--foreground); border-radius: 8px; padding: .25rem .5rem; cursor: pointer; }
+.composer-tools .tool:hover { border-color: var(--purple-600); }
+.composer-spacer { flex: 1; }
+#postSubmitBtn[disabled] { opacity: .6; cursor: not-allowed; }
+</style>
+{% endblock %} 

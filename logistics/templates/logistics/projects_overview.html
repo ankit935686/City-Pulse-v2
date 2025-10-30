@@ -1,0 +1,1441 @@
+{% extends 'users/base.html' %}
+{% load static %}
+
+{% block title %}Projects Overview - Smart City Dashboard{% endblock %}
+
+{% block extra_css %}
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    .projects-container {
+        display: block;
+        margin-bottom: 2rem;
+    }
+    
+    .map-container {
+        width: 100%;
+        height: 60vh;
+        min-height: 500px;
+        border-radius: var(--radius);
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        border: 2px solid var(--border);
+        position: relative;
+    }
+    
+    .filters-section {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .filter-group label {
+        font-weight: 500;
+        color: var(--foreground);
+        font-size: 0.875rem;
+    }
+    
+    .filter-select, .search-input {
+        padding: 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 0.5rem;
+        background: var(--input);
+        color: var(--foreground);
+        font-size: 0.875rem;
+        min-width: 200px;
+    }
+    
+    .filter-select:focus, .search-input:focus {
+        outline: none;
+        border-color: var(--purple-500);
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+    }
+    
+    .charts-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        margin-bottom: 2rem;
+        margin-top: 1rem;
+    }
+    
+    .chart-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .chart-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        border-color: var(--purple-300);
+    }
+    
+    .chart-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--purple-500), var(--purple-600));
+    }
+    
+    .chart-title {
+        font-family: var(--font-heading);
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--foreground);
+        margin-bottom: 1.5rem;
+        text-align: center;
+        position: relative;
+        padding-bottom: 0.75rem;
+    }
+    
+    .chart-title::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 60px;
+        height: 2px;
+        background: linear-gradient(90deg, var(--purple-500), var(--purple-600));
+        border-radius: 1px;
+    }
+    
+    .chart-container {
+        height: 300px;
+        position: relative;
+    }
+    
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+        margin-top: 1rem;
+    }
+    
+    .stat-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 1.5rem;
+        text-align: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        border-color: var(--purple-300);
+    }
+    
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        
+    }
+    
+    .stat-number {
+        font-family: var(--font-heading);
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--purple-600);
+        margin-bottom: 0.5rem;
+        line-height: 1;
+    }
+    
+    .stat-label {
+        color: var(--secondary-foreground);
+        font-size: 0.875rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .loading {
+        text-align: center;
+        padding: 2rem;
+        color: var(--secondary-foreground);
+    }
+    
+    .error {
+        background: #FEE2E2;
+        color: #DC2626;
+        padding: 1rem;
+        border-radius: var(--radius);
+        margin-bottom: 1rem;
+        border: 1px solid #FCA5A5;
+    }
+    
+    /* Map and Marker Styles */
+    .project-marker {
+        transition: all 0.3s ease;
+    }
+    
+    .project-marker-hover {
+        transition: all 0.2s ease;
+    }
+    
+    .project-marker-highlighted {
+        z-index: 1000 !important;
+        transition: all 0.3s ease;
+    }
+    
+    .project-marker-pulse {
+        z-index: 1000 !important;
+        transition: all 0.2s ease;
+        animation: pulse 0.6s ease-in-out;
+    }
+    
+    @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+        100% { transform: scale(1); }
+    }
+    
+    .project-popup {
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+    
+    .project-popup .leaflet-popup-content-wrapper {
+        border-radius: 8px;
+        background: var(--card);
+        border: 1px solid var(--border);
+    }
+    
+    .project-popup .leaflet-popup-content {
+        margin: 0;
+        padding: 0;
+    }
+    
+    .project-popup .leaflet-popup-tip {
+        background: var(--card);
+        border: 1px solid var(--border);
+    }
+    
+    /* Map Container Enhancements */
+    .map-container {
+        position: relative;
+        border: 2px solid var(--border);
+    }
+    
+    .map-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(45deg, transparent 30%, rgba(139, 92, 246, 0.1) 50%, transparent 70%);
+        pointer-events: none;
+        z-index: 1;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    
+    .map-container:hover::before {
+        opacity: 1;
+    }
+    
+    /* Loading State for Map */
+    .map-loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--card);
+        padding: 1rem 2rem;
+        border-radius: var(--radius);
+        border: 1px solid var(--border);
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--foreground);
+    }
+    
+    /* Projects List Section Styles */
+    .projects-list-section {
+        margin-top: 2rem;
+        padding: 1.5rem;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+    
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    
+    .section-title {
+        font-family: var(--font-heading);
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--foreground);
+        margin: 0;
+    }
+    
+    .list-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .project-count {
+        font-size: 0.875rem;
+        color: var(--secondary-foreground);
+    }
+    
+    .projects-list {
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--input);
+    }
+    
+    .projects-list .list-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border);
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .projects-list .list-item:last-child {
+        border-bottom: none;
+    }
+    
+    .projects-list .list-item:hover {
+        background-color: var(--secondary);
+        transform: translateX(4px);
+    }
+    
+    .projects-list .list-item.active {
+        background-color: var(--purple-100);
+        border-left: 4px solid var(--purple-600);
+    }
+    
+    .projects-list .list-item .project-info {
+        flex: 1;
+        margin-right: 1rem;
+    }
+    
+    .projects-list .list-item .project-name {
+        font-weight: 600;
+        color: var(--foreground);
+        font-size: 0.9375rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    .projects-list .list-item .project-location {
+        font-size: 0.8125rem;
+        color: var(--secondary-foreground);
+    }
+    
+    .projects-list .list-item .project-status {
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.25rem 0.75rem;
+        border-radius: 0.375rem;
+        color: white;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .projects-list .list-item .project-status.ongoing {
+        background-color: #3B82F6;
+    }
+    
+    .projects-list .list-item .project-status.completed {
+        background-color: #10B981;
+    }
+    
+    .projects-list .list-item .project-status.delayed {
+        background-color: #EF4444;
+    }
+    
+    .projects-list .list-loading {
+        text-align: center;
+        padding: 1rem;
+        color: var(--secondary-foreground);
+    }
+    
+    .projects-list .list-empty {
+        text-align: center;
+        padding: 2rem;
+        color: var(--secondary-foreground);
+    }
+    
+    .btn-outline-primary {
+        background: transparent;
+        color: var(--purple-600);
+        border: 1px solid var(--purple-600);
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        transition: all 0.2s ease;
+    }
+    
+    .btn-outline-primary:hover {
+        background: var(--purple-600);
+        color: white;
+    }
+    
+    .btn-sm {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.8125rem;
+    }
+    
+    @media (max-width: 768px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+        
+        .charts-container {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        
+        .filters-section {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .filter-select, .search-input {
+            min-width: auto;
+        }
+        
+        .map-container {
+            height: 50vh;
+            min-height: 400px;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .stats-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        
+        .stat-card {
+            padding: 1rem;
+        }
+        
+        .chart-card {
+            padding: 1rem;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="padding-left: 1.25rem; padding-right: 1.25rem;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0">Mumbai Infrastructure Projects Overview</h1>
+        <div id="csvStatus" class="text-muted">
+            <i class="ri-loader-4-line ri-spin me-2"></i>Loading projects data...
+        </div>
+    </div>
+    
+    <div id="loadingMessage" class="loading">
+        <i class="ri-loader-4-line ri-spin me-2"></i>Loading projects data...
+    </div>
+    
+    <div id="errorMessage" class="error" style="display: none;"></div>
+    
+    <div id="projectsContent" style="display: none;">
+        <!-- Filters Section -->
+        <div class="filters-section">
+            <div class="filter-group">
+                <label for="statusFilter">Filter by Status:</label>
+                <select id="statusFilter" class="filter-select">
+                    <option value="All">All Status</option>
+                    <option value="Ongoing">Ongoing</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Delayed">Delayed</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="searchInput">Search Projects:</label>
+                <input type="text" id="searchInput" class="search-input" placeholder="Search by name, location, sector...">
+            </div>
+        </div>
+        
+        <!-- Statistics Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number" id="totalProjects">0</div>
+                <div class="stat-label">Total Projects</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="ongoingProjects">0</div>
+                <div class="stat-label">Ongoing</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="completedProjects">0</div>
+                <div class="stat-label">Completed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="totalBudget">₹0 Cr</div>
+                <div class="stat-label">Total Budget</div>
+            </div>
+        </div>
+        
+        <!-- Map Container -->
+        <div class="projects-container">
+            <div class="map-container">
+                <div id="mapLoading" class="map-loading">
+                    <i class="ri-loader-4-line ri-spin"></i>
+                    Loading Mumbai Map...
+                </div>
+                <div id="projectsMap" style="height: 100%; width: 100%;"></div>
+            </div>
+        </div>
+        
+        <!-- Projects List Section -->
+        <div class="projects-list-section">
+            <div class="section-header">
+                <h3 class="section-title">All Projects</h3>
+                <div class="list-controls">
+                    <span class="project-count" id="projectCount">0 projects</span>
+                    <button class="btn btn-sm btn-outline-primary" onclick="toggleProjectList()">
+                        <i class="ri-eye-line" id="toggleIcon"></i>
+                        <span id="toggleText">Hide List</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="projects-list" id="projectsList">
+                <div class="list-loading">
+                    <i class="ri-loader-4-line ri-spin"></i>
+                    Loading projects...
+                </div>
+            </div>
+        </div>
+        
+        <!-- Charts Container -->
+        <div class="charts-container">
+            <div class="chart-card">
+                <div class="chart-title">Project Budgets</div>
+                <div class="chart-container">
+                    <canvas id="budgetChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-card">
+                <div class="chart-title">Project Status Distribution</div>
+                <div class="chart-container">
+                    <canvas id="statusChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+let map;
+let markers = [];
+let budgetChart = null;
+let statusChart = null;
+let allProjectsData = [];
+
+// Chart.js global modern theme
+Chart.defaults.font.family = "Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial";
+Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--secondary-foreground') || '#6B7280';
+Chart.defaults.plugins.legend.labels.usePointStyle = true;
+Chart.defaults.plugins.legend.labels.pointStyle = 'circle';
+Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(17, 24, 39, 0.9)';
+Chart.defaults.plugins.tooltip.titleColor = '#fff';
+Chart.defaults.plugins.tooltip.bodyColor = '#E5E7EB';
+Chart.defaults.responsive = true;
+Chart.defaults.maintainAspectRatio = false;
+
+// Initialize the page
+document.addEventListener('DOMContentLoaded', function() {
+    initializeMap();
+    loadCSVDataAndProjects();
+    setupEventListeners();
+});
+
+function initializeMap() {
+    // Initialize Leaflet map centered on Mumbai with proper zoom
+    map = L.map('projectsMap').setView([19.0760, 72.8777], 11);
+    
+    // Add multiple tile layers for better reliability
+    const osmTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+    });
+    
+    const cartoTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© CartoDB',
+        maxZoom: 19
+    });
+    
+    // Use OSM tiles by default
+    osmTiles.addTo(map);
+    
+    // Add layer control for switching between tile providers
+    const baseMaps = {
+        "OpenStreetMap": osmTiles,
+        "CartoDB Light": cartoTiles
+    };
+    
+    L.control.layers(baseMaps).addTo(map);
+    
+    // Hide loading indicator when map is ready
+    map.whenReady(function() {
+        document.getElementById('mapLoading').style.display = 'none';
+        console.log('Mumbai map loaded successfully');
+    });
+    
+    // Force a map refresh to ensure tiles load
+    setTimeout(() => {
+        map.invalidateSize();
+    }, 100);
+    
+    // Add error handling for tile loading
+    map.on('tileerror', function(e) {
+        console.warn('Tile loading error:', e);
+        // Try to reload tiles
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 1000);
+    });
+}
+
+function setupEventListeners() {
+    // Status filter change
+    document.getElementById('statusFilter').addEventListener('change', function() {
+        filterAndUpdateProjects();
+    });
+    
+    // Search input
+    document.getElementById('searchInput').addEventListener('input', function() {
+        filterAndUpdateProjects();
+    });
+}
+
+async function loadCSVDataAndProjects() {
+    try {
+        // First load CSV data
+        const csvResponse = await fetch('/logistics/api/projects/load-csv/');
+        const csvResult = await csvResponse.json();
+        
+        if (csvResult.success) {
+            document.getElementById('csvStatus').innerHTML = '<i class="ri-check-line me-2 text-success"></i>Data loaded successfully';
+            
+            // Then load projects data
+            await loadProjectsData();
+        } else {
+            throw new Error(csvResult.error || 'Failed to load CSV data');
+        }
+    } catch (error) {
+        console.error('Error loading CSV data:', error);
+        document.getElementById('csvStatus').innerHTML = '<i class="ri-error-warning-line me-2 text-danger"></i>Error loading data';
+        document.getElementById('errorMessage').textContent = 'Error loading CSV data: ' + error.message;
+        document.getElementById('errorMessage').style.display = 'block';
+    }
+}
+
+async function loadProjectsData() {
+    try {
+        const response = await fetch('/logistics/api/projects/');
+        const result = await response.json();
+        
+        if (result.success) {
+            allProjectsData = result.data;
+            displayProjects();
+            updateStatistics();
+            createCharts();
+            document.getElementById('loadingMessage').style.display = 'none';
+            document.getElementById('projectsContent').style.display = 'block';
+        } else {
+            throw new Error(result.error || 'Failed to load projects');
+        }
+    } catch (error) {
+        console.error('Error loading projects:', error);
+        document.getElementById('loadingMessage').style.display = 'none';
+        document.getElementById('errorMessage').textContent = 'Error loading projects: ' + error.message;
+        document.getElementById('errorMessage').style.display = 'block';
+    }
+}
+
+function displayProjects() {
+    // Clear existing markers
+    markers.forEach(marker => map.removeLayer(marker));
+    markers = [];
+    
+    // Add markers for each project with better positioning
+    allProjectsData.forEach(project => {
+        if (project.latitude && project.longitude) {
+            // Create custom marker icon with better visibility
+            const markerIcon = L.divIcon({
+                className: 'project-marker',
+                html: `<div style="background-color: ${project.progress_color}; border-radius: 50%; width: 20px; height: 20px; border: 3px solid white; box-shadow: 0 0 8px rgba(0,0,0,0.5); cursor: pointer;"></div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+            
+            const marker = L.marker([project.latitude, project.longitude], { 
+                icon: markerIcon,
+                title: project.name // Fixed: use 'name' instead of 'project_name'
+            })
+                .bindPopup(createPopupContent(project), {
+                    maxWidth: 300,
+                    className: 'project-popup'
+                })
+                .addTo(map);
+            
+            // Add hover effect
+            marker.on('mouseover', function() {
+                this.setIcon(L.divIcon({
+                    className: 'project-marker-hover',
+                    html: `<div style="background-color: ${project.progress_color}; border-radius: 50%; width: 24px; height: 24px; border: 4px solid white; box-shadow: 0 0 12px rgba(0,0,0,0.7); cursor: pointer;"></div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                }));
+            });
+            
+            marker.on('mouseout', function() {
+                this.setIcon(markerIcon);
+            });
+            
+            // Store project data in marker for easy access
+            marker.projectData = project;
+            
+            markers.push(marker);
+        }
+    });
+    
+    // Fit map to show all markers with proper padding
+    if (markers.length > 0) {
+        const group = new L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.2));
+        
+        // Ensure we're centered on Mumbai if no markers are visible
+        if (markers.length === 0) {
+            map.setView([19.0760, 72.8777], 11);
+        }
+    } else {
+        // If no markers, center on Mumbai
+        map.setView([19.0760, 72.8777], 11);
+    }
+    
+    // Force map refresh
+    setTimeout(() => {
+        map.invalidateSize();
+    }, 200);
+}
+
+function createPopupContent(project) {
+    const statusColor = project.progress_color;
+    const progressBar = `<div style="width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; margin: 8px 0;">
+        <div style="width: ${project.progress}%; height: 100%; background: ${statusColor}; border-radius: 4px; transition: width 0.3s ease;"></div>
+    </div>`;
+    
+    return `
+        <div style="min-width: 280px; padding: 8px;">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                <div style="width: 12px; height: 12px; background: ${statusColor}; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.3);"></div>
+                <h6 style="margin: 0; color: #4338ca; font-size: 16px; font-weight: 600;">${project.name}</h6>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+                <div>
+                    <strong style="color: #6b7280; font-size: 12px;">LOCATION</strong><br>
+                    <span style="color: #374151; font-size: 14px;">${project.location}</span>
+                </div>
+                <div>
+                    <strong style="color: #6b7280; font-size: 12px;">SECTOR</strong><br>
+                    <span style="color: #374151; font-size: 14px;">${project.sector}</span>
+                </div>
+            </div>
+            
+            <div style="background: #f9fafb; padding: 8px; border-radius: 6px; margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <span style="color: #6b7280; font-size: 12px;">PROGRESS</span>
+                    <span style="color: ${statusColor}; font-weight: 600; font-size: 14px;">${project.progress}%</span>
+                </div>
+                ${progressBar}
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+                <div>
+                    <strong style="color: #6b7280; font-size: 12px;">BUDGET</strong><br>
+                    <span style="color: #059669; font-weight: 600; font-size: 14px;">₹${project.budget} Cr</span>
+                </div>
+                <div>
+                    <strong style="color: #6b7280; font-size: 12px;">STATUS</strong><br>
+                    <span style="color: ${statusColor}; font-weight: 600; font-size: 14px;">${project.status}</span>
+                </div>
+            </div>
+            
+            <div style="border-top: 1px solid #e5e7eb; padding-top: 8px;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+                    <div>
+                        <strong style="color: #6b7280; font-size: 11px;">START DATE</strong><br>
+                        <span style="color: #374151; font-size: 13px;">${project.start_date}</span>
+                    </div>
+                    <div>
+                        <strong style="color: #6b7280; font-size: 11px;">END DATE</strong><br>
+                        <span style="color: #374151; font-size: 13px;">${project.end_date}</span>
+                    </div>
+                </div>
+                <div>
+                    <strong style="color: #6b7280; font-size: 11px;">CONTRACTOR</strong><br>
+                    <span style="color: #374151; font-size: 13px;">${project.contractor}</span>
+                </div>
+            </div>
+            
+            <div style="margin-top: 8px; padding: 8px; background: #f3f4f6; border-radius: 4px;">
+                <strong style="color: #6b7280; font-size: 11px;">DESCRIPTION</strong><br>
+                <span style="color: #374151; font-size: 12px; line-height: 1.4;">${project.description}</span>
+            </div>
+        </div>
+    `;
+}
+
+function updateStatistics() {
+    const total = allProjectsData.length;
+    const ongoing = allProjectsData.filter(p => p.status === 'Ongoing').length;
+    const completed = allProjectsData.filter(p => p.status === 'Completed').length;
+    const totalBudget = allProjectsData.reduce((sum, p) => sum + p.budget, 0);
+    
+    document.getElementById('totalProjects').textContent = total;
+    document.getElementById('ongoingProjects').textContent = ongoing;
+    document.getElementById('completedProjects').textContent = completed;
+    document.getElementById('totalBudget').textContent = `₹${totalBudget.toFixed(0)} Cr`;
+    
+    // Update project count in list section
+    document.getElementById('projectCount').textContent = `${total} projects`;
+    
+    // Populate projects list
+    populateProjectsList();
+}
+
+function populateProjectsList() {
+    const projectsList = document.getElementById('projectsList');
+    
+    if (allProjectsData.length === 0) {
+        projectsList.innerHTML = '<div class="list-empty">No projects found</div>';
+        return;
+    }
+    
+    let listHTML = '';
+    
+    allProjectsData.forEach((project, index) => {
+        const statusClass = project.status.toLowerCase();
+        const statusColor = project.progress_color;
+        
+        listHTML += `
+            <div class="list-item" data-project-id="${project.id}" onclick="selectProject('${project.id}', ${index})">
+                <div class="project-info">
+                    <div class="project-name">${project.name}</div>
+                    <div class="project-location">📍 ${project.location}</div>
+                </div>
+                <div class="project-status ${statusClass}" style="background-color: ${statusColor}">
+                    ${project.status}
+                </div>
+            </div>
+        `;
+    });
+    
+    projectsList.innerHTML = listHTML;
+}
+
+function selectProject(projectId, index) {
+    console.log('Selecting project:', projectId, 'at index:', index);
+    
+    // Remove active class from all items
+    document.querySelectorAll('.list-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // Add active class to selected item
+    const selectedItem = document.querySelector(`[data-project-id="${projectId}"]`);
+    if (selectedItem) {
+        selectedItem.classList.add('active');
+        console.log('Added active class to list item');
+    }
+    
+    // Find the project data
+    const project = allProjectsData.find(p => p.id === projectId);
+    if (!project) {
+        console.error('Project not found:', projectId);
+        console.log('Available projects:', allProjectsData.map(p => ({ id: p.id, name: p.name })));
+        return;
+    }
+    
+    console.log('Found project:', project);
+    
+    // Find the marker for this project using stored project data
+    const marker = markers.find(m => m.projectData && m.projectData.id === projectId);
+    
+    if (marker) {
+        console.log('Found marker for project:', marker);
+        
+        // Remove highlight from all markers first
+        markers.forEach(m => {
+            if (m !== marker && m.projectData) {
+                // Reset to original icon
+                m.setIcon(L.divIcon({
+                    className: 'project-marker',
+                    html: `<div style="background-color: ${m.projectData.progress_color}; border-radius: 50%; width: 20px; height: 20px; border: 3px solid white; box-shadow: 0 0 8px rgba(0,0,0,0.5); cursor: pointer;"></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                }));
+            }
+        });
+        
+        // Highlight the selected marker
+        marker.setIcon(L.divIcon({
+            className: 'project-marker-highlighted',
+            html: `<div style="background-color: #F59E0B; border-radius: 50%; width: 28px; height: 28px; border: 4px solid white; box-shadow: 0 0 15px rgba(245, 158, 11, 0.8); cursor: pointer;"></div>`,
+            iconSize: [28, 28],
+            iconAnchor: [14, 14]
+        }));
+        
+        console.log('Highlighted marker');
+        
+        // Open popup and pan to marker
+        marker.openPopup();
+        
+        // Pan to the marker with smooth animation
+        map.setView(marker.getLatLng(), 15, {
+            animate: true,
+            duration: 1
+        });
+        
+        console.log('Panned to marker at:', marker.getLatLng());
+        
+        // Add a pulsing effect
+        let pulseCount = 0;
+        const pulseInterval = setInterval(() => {
+            if (pulseCount >= 6) { // Pulse 3 times
+                clearInterval(pulseInterval);
+                // Reset to original icon after pulsing
+                setTimeout(() => {
+                    marker.setIcon(L.divIcon({
+                        className: 'project-marker',
+                        html: `<div style="background-color: ${project.progress_color}; border-radius: 50%; width: 20px; height: 20px; border: 3px solid white; box-shadow: 0 0 8px rgba(0,0,0,0.5); cursor: pointer;"></div>`,
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    }));
+                }, 1000);
+                return;
+            }
+            
+            const size = pulseCount % 2 === 0 ? 32 : 24;
+            marker.setIcon(L.divIcon({
+                className: 'project-marker-pulse',
+                html: `<div style="background-color: #F59E0B; border-radius: 50%; width: ${size}px; height: ${size}px; border: 4px solid white; box-shadow: 0 0 20px rgba(245, 158, 11, 0.9); cursor: pointer;"></div>`,
+                iconSize: [size, size],
+                iconAnchor: [size/2, size/2]
+            }));
+            
+            pulseCount++;
+        }, 300);
+        
+    } else {
+        console.error('Marker not found for project:', projectId);
+        console.log('Available markers:', markers.map(m => ({ 
+            hasProjectData: !!m.projectData, 
+            projectId: m.projectData ? m.projectData.id : 'none' 
+        })));
+    }
+    
+    // Scroll to the selected item
+    if (selectedItem) {
+        selectedItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+function toggleProjectList() {
+    const projectsList = document.getElementById('projectsList');
+    const toggleIcon = document.getElementById('toggleIcon');
+    const toggleText = document.getElementById('toggleText');
+    
+    if (projectsList.style.display === 'none') {
+        projectsList.style.display = 'block';
+        toggleIcon.className = 'ri-eye-line';
+        toggleText.textContent = 'Hide List';
+    } else {
+        projectsList.style.display = 'none';
+        toggleIcon.className = 'ri-eye-off-line';
+        toggleText.textContent = 'Show List';
+    }
+}
+
+function updateProjectsList(filteredData) {
+    const projectsList = document.getElementById('projectsList');
+    
+    if (filteredData.length === 0) {
+        projectsList.innerHTML = '<div class="list-empty">No projects match your filters</div>';
+        return;
+    }
+    
+    let listHTML = '';
+    
+    filteredData.forEach((project, index) => {
+        const statusClass = project.status.toLowerCase();
+        const statusColor = project.progress_color;
+        
+        listHTML += `
+            <div class="list-item" data-project-id="${project.id}" onclick="selectProject('${project.id}', ${index})">
+                <div class="project-info">
+                    <div class="project-name">${project.name}</div>
+                    <div class="project-location">📍 ${project.location}</div>
+                </div>
+                <div class="project-status ${statusClass}" style="background-color: ${statusColor}">
+                    ${project.status}
+                </div>
+            </div>
+        `;
+    });
+    
+    projectsList.innerHTML = listHTML;
+    
+    // Update project count
+    document.getElementById('projectCount').textContent = `${filteredData.length} projects`;
+}
+
+function createCharts() {
+    // Destroy existing charts if they exist
+    if (budgetChart) {
+        budgetChart.destroy();
+        budgetChart = null;
+    }
+    if (statusChart) {
+        statusChart.destroy();
+        statusChart = null;
+    }
+    
+    createBudgetChart();
+    createStatusChart();
+}
+
+function createBudgetChart() {
+    const ctx = document.getElementById('budgetChart').getContext('2d');
+    
+    // Sort projects by budget (top 10)
+    const sortedProjects = [...allProjectsData].sort((a, b) => b.budget - a.budget).slice(0, 10);
+    
+    budgetChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: sortedProjects.map(p => p.name.length > 20 ? p.name.substring(0, 20) + '...' : p.name),
+            datasets: [{
+                label: 'Budget (₹ Crores)',
+                data: sortedProjects.map(p => p.budget),
+                backgroundColor: sortedProjects.map(p => p.progress_color),
+                borderColor: sortedProjects.map(p => p.progress_color),
+                borderWidth: 1,
+                borderRadius: 10,
+                borderSkipped: false,
+                hoverBackgroundColor: sortedProjects.map(p => p.progress_color)
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Budget: ₹${context.parsed.y} Cr`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Budget (₹ Crores)'
+                    },
+                    grid: { color: 'rgba(107,114,128,0.15)' }
+                },
+                x: {
+                    ticks: {
+                        maxRotation: 45,
+                        minRotation: 45
+                    },
+                    grid: { display: false }
+                }
+            },
+            layout: { padding: 8 },
+            onClick: function(event, elements) {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const project = sortedProjects[index];
+                    highlightProjectOnMap(project.id);
+                }
+            }
+        }
+    });
+}
+
+function createStatusChart() {
+    const ctx = document.getElementById('statusChart').getContext('2d');
+    
+    const statusCounts = {};
+    allProjectsData.forEach(project => {
+        statusCounts[project.status] = (statusCounts[project.status] || 0) + 1;
+    });
+    
+    const colors = {
+        'Ongoing': '#3B82F6',
+        'Completed': '#10B981',
+        'Delayed': '#EF4444'
+    };
+    
+    statusChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: Object.keys(statusCounts),
+            datasets: [{
+                data: Object.values(statusCounts),
+                backgroundColor: Object.keys(statusCounts).map(status => colors[status] || '#6B7280'),
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { padding: 16 }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            layout: { padding: 8 },
+            onClick: function(event, elements) {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const status = Object.keys(statusCounts)[index];
+                    filterByStatus(status);
+                }
+            }
+        }
+    });
+}
+
+function filterAndUpdateProjects() {
+    const statusFilter = document.getElementById('statusFilter').value;
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    
+    let filteredData = allProjectsData;
+    
+    // Apply status filter
+    if (statusFilter && statusFilter !== 'All') {
+        filteredData = filteredData.filter(project => project.status === statusFilter);
+    }
+    
+    // Apply search filter
+    if (searchTerm) {
+        filteredData = filteredData.filter(project => 
+            project.name.toLowerCase().includes(searchTerm) ||
+            project.location.toLowerCase().includes(searchTerm) ||
+            project.sector.toLowerCase().includes(searchTerm) ||
+            project.contractor.toLowerCase().includes(searchTerm)
+        );
+    }
+    
+    // Update map markers
+    updateMapMarkers(filteredData);
+    
+    // Update charts
+    updateCharts(filteredData);
+    
+    // Update statistics
+    updateFilteredStatistics(filteredData);
+    
+    // Update projects list
+    updateProjectsList(filteredData);
+}
+
+function updateMapMarkers(filteredData) {
+    // Clear existing markers
+    markers.forEach(marker => map.removeLayer(marker));
+    markers = [];
+    
+    // Add filtered markers
+    filteredData.forEach(project => {
+        if (project.latitude && project.longitude) {
+            const markerIcon = L.divIcon({
+                className: 'project-marker',
+                html: `<div style="background-color: ${project.progress_color}; border-radius: 50%; width: 20px; height: 20px; border: 3px solid white; box-shadow: 0 0 8px rgba(0,0,0,0.5); cursor: pointer;"></div>`,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+            
+            const marker = L.marker([project.latitude, project.longitude], { 
+                icon: markerIcon,
+                title: project.name // Fixed: use 'name' instead of 'project_name'
+            })
+                .bindPopup(createPopupContent(project), {
+                    maxWidth: 300,
+                    className: 'project-popup'
+                })
+                .addTo(map);
+            
+            // Add hover effect
+            marker.on('mouseover', function() {
+                this.setIcon(L.divIcon({
+                    className: 'project-marker-hover',
+                    html: `<div style="background-color: ${project.progress_color}; border-radius: 50%; width: 24px; height: 24px; border: 4px solid white; box-shadow: 0 0 12px rgba(0,0,0,0.7); cursor: pointer;"></div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                }));
+            });
+            
+            marker.on('mouseout', function() {
+                this.setIcon(markerIcon);
+            });
+            
+            // Store project data in marker for easy access
+            marker.projectData = project;
+            
+            markers.push(marker);
+        }
+    });
+    
+    // Fit map to show all markers
+    if (markers.length > 0) {
+        const group = new L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.2));
+        
+        // Ensure we're centered on Mumbai if no markers are visible
+        if (markers.length === 0) {
+            map.setView([19.0760, 72.8777], 11);
+        }
+    } else {
+        // If no markers, center on Mumbai
+        map.setView([19.0760, 72.8777], 11);
+    }
+    
+    // Force map refresh
+    setTimeout(() => {
+        map.invalidateSize();
+    }, 200);
+}
+
+function updateCharts(filteredData) {
+    // Destroy existing charts
+    if (budgetChart) {
+        budgetChart.destroy();
+        budgetChart = null;
+    }
+    if (statusChart) {
+        statusChart.destroy();
+        statusChart = null;
+    }
+    
+    // Update budget chart
+    const sortedProjects = [...filteredData].sort((a, b) => b.budget - a.budget).slice(0, 10);
+    
+    const budgetCtx = document.getElementById('budgetChart').getContext('2d');
+    budgetChart = new Chart(budgetCtx, {
+        type: 'bar',
+        data: {
+            labels: sortedProjects.map(p => p.name.length > 20 ? p.name.substring(0, 20) + '...' : p.name),
+            datasets: [{
+                label: 'Budget (₹ Crores)',
+                data: sortedProjects.map(p => p.budget),
+                backgroundColor: sortedProjects.map(p => p.progress_color),
+                borderColor: sortedProjects.map(p => p.progress_color),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Budget: ₹${context.parsed.y} Cr`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Budget (₹ Crores)' }
+                },
+                x: {
+                    ticks: { maxRotation: 45, minRotation: 45 }
+                }
+            },
+            onClick: function(event, elements) {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const project = sortedProjects[index];
+                    highlightProjectOnMap(project.id);
+                }
+            }
+        }
+    });
+    
+    // Update status chart
+    const statusCounts = {};
+    filteredData.forEach(project => {
+        statusCounts[project.status] = (statusCounts[project.status] || 0) + 1;
+    });
+    
+    const colors = {
+        'Ongoing': '#3B82F6',
+        'Completed': '#10B981',
+        'Delayed': '#EF4444'
+    };
+    
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    statusChart = new Chart(statusCtx, {
+        type: 'pie',
+        data: {
+            labels: Object.keys(statusCounts),
+            datasets: [{
+                data: Object.values(statusCounts),
+                backgroundColor: Object.keys(statusCounts).map(status => colors[status] || '#6B7280'),
+                borderWidth: 2,
+                borderColor: '#ffffff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            },
+            onClick: function(event, elements) {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const status = Object.keys(statusCounts)[index];
+                    filterByStatus(status);
+                }
+            }
+        }
+    });
+}
+
+function updateFilteredStatistics(filteredData) {
+    const total = filteredData.length;
+    const ongoing = filteredData.filter(p => p.status === 'Ongoing').length;
+    const completed = filteredData.filter(p => p.status === 'Completed').length;
+    const totalBudget = filteredData.reduce((sum, p) => sum + p.budget, 0);
+    
+    document.getElementById('totalProjects').textContent = total;
+    document.getElementById('ongoingProjects').textContent = ongoing;
+    document.getElementById('completedProjects').textContent = completed;
+    document.getElementById('totalBudget').textContent = `₹${totalBudget.toFixed(0)} Cr`;
+}
+
+function highlightProjectOnMap(projectId) {
+    // Find the marker for this project using stored project data
+    const marker = markers.find(m => m.projectData && m.projectData.id === projectId);
+    
+    if (marker) {
+        // Open popup and pan to marker
+        marker.openPopup();
+        map.setView(marker.getLatLng(), 15);
+        
+        // Add a temporary highlight effect
+        marker.setIcon(L.divIcon({
+            className: 'project-marker-highlighted',
+            html: '<div style="background-color: #F59E0B; border-radius: 50%; width: 20px; height: 20px; border: 3px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div>',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        }));
+        
+        setTimeout(() => {
+            // Reset to original icon
+            if (marker.projectData) {
+                marker.setIcon(L.divIcon({
+                    className: 'project-marker',
+                    html: `<div style="background-color: ${marker.projectData.progress_color}; border-radius: 50%; width: 20px; height: 20px; border: 3px solid white; box-shadow: 0 0 8px rgba(0,0,0,0.5); cursor: pointer;"></div>`,
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                }));
+            }
+        }, 2000);
+    }
+}
+
+function getProjectColor(projectId) {
+    const project = allProjectsData.find(p => p.id === projectId);
+    return project ? project.progress_color : '#6B7280';
+}
+
+function filterByStatus(status) {
+    document.getElementById('statusFilter').value = status;
+    filterAndUpdateProjects();
+}
+</script>
+{% endblock %} 
