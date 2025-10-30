@@ -14,6 +14,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 import os
 
+
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 # Use pathlib.Path so expressions like `BASE_DIR / 'db.sqlite3'` work.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,7 +30,7 @@ load_dotenv()
 SECRET_KEY = 'django-insecure-b+txtcc$nxhcbqmm9&&1bslu#q5c09fbn)-4@ui3yo_h4%lmyi'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = [ 'localhost', '127.0.0.1']
 
